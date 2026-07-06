@@ -1,361 +1,416 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { CheckCircle2, XCircle, AlertCircle, Users, MessageSquare } from 'lucide-react';
+import { 
+  CheckCircle2, XCircle, AlertTriangle, ChevronDown, Loader2,
+  ShieldCheck, Award, FileText, MessageSquare, Send, QrCode, RotateCcw
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { AppData, HasilSAWItem } from '../../data';
+import { AppData, Sanggahan, HasilSAWItem } from '../../data';
 import { ConfirmDialog } from '../ConfirmDialog';
 
-interface Props { data: AppData; setData: (d: AppData) => void; }
+interface Props {
+  data: AppData;
+  setData: (d: AppData) => void;
+}
 
 export function ValidasiKades({ data, setData }: Props) {
-  const [periode, setPeriode] = useState(data.activePeriode || '2026-06');
-  const [selected, setSelected] = useState<Set<number>>(new Set(data.approvedIds[data.activePeriode || '2026-06'] || []));
-  const [confirmApprove, setConfirmApprove] = useState(false);
-  const [confirmReject, setConfirmReject] = useState(false);
-  
-  // Catatan State
-  const [catatanModalOpen, setCatatanModalOpen] = useState(false);
-  const [selectedHasil, setSelectedHasil] = useState<HasilSAWItem | null>(null);
-  const [catatanText, setCatatanText] = useState('');
-  const [savingCatatan, setSavingCatatan] = useState(false);
+  const [selectedBantuanId, setSelectedBantuanId] = useState<number | null>(data.activeJenisBantuanId || null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [resettingApproval, setResettingApproval] = useState(false);
+  const [confirmResetApproval, setConfirmResetApproval] = useState(false);
+  const [sanggahans, setSanggahans] = useState<Sanggahan[]>([]);
+  const [sanggahanDetail, setSanggahanDetail] = useState<Sanggahan | null>(null);
+  const [approvalResult, setApprovalResult] = useState<any>(null);
 
-  const filteredHasilSAW = data.hasilSAW.filter(h => h.periode === periode);
-  const sawProcessed = filteredHasilSAW.length > 0;
-  
-  const currentApproved = data.approvedIds[periode] || [];
-  const approvedInPeriode = filteredHasilSAW.filter(r => currentApproved.some(id => String(id) === String(r.masyarakatId)));
-  const isPeriodeApproved = approvedInPeriode.length > 0;
+  // Load sanggahans for this bantuan+periode
+  useEffect(() => {
+    if (selectedBantuanId && data.activePeriode) {
+      axios.get('/api/sanggahan/by-hasil-saw', {
+        params: { bantuan_id: selectedBantuanId, periode: data.activePeriode }
+      }).then(res => setSanggahans(res.data || []))
+        .catch(() => setSanggahans([]));
+    }
+  }, [selectedBantuanId, data.activePeriode]);
+
+  // Fetch data when category changes
+  useEffect(() => {
+    if (selectedBantuanId) {
+      setData(prev => ({ ...prev, activeJenisBantuanId: selectedBantuanId }));
+    }
+  }, [selectedBantuanId]);
+
+  const hasilForCategory = data.hasilSAW
+    .filter(h => h.periode === data.activePeriode && h.jenis_bantuan_id == selectedBantuanId)
+    .sort((a, b) => a.ranking - b.ranking);
+
+  const approvalKey = data.activePeriode + (selectedBantuanId ? '_' + selectedBantuanId : '');
+  const alreadyApproved = data.approvedIds[approvalKey] || [];
+  const isApproved = alreadyApproved.length > 0;
+
+  useEffect(() => {
+    if (isApproved) {
+      setSelectedIds(alreadyApproved);
+    } else {
+      // Pre-select all "Layak" entries
+      setSelectedIds(hasilForCategory.filter(h => h.status === 'Layak').map(h => h.masyarakatId));
+    }
+  }, [hasilForCategory.length, isApproved, selectedBantuanId]);
 
   const toggleSelect = (id: number) => {
-    const next = new Set(selected);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    setSelected(next);
+    if (isApproved) return;
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
-  const selectByKuota = () => {
-    const top = filteredHasilSAW.slice(0, data.kuotaBansos).map(r => r.masyarakatId);
-    setSelected(new Set(top));
+  const selectAll = () => {
+    if (isApproved) return;
+    setSelectedIds(hasilForCategory.map(h => h.masyarakatId));
   };
 
-  const selectAll = () => setSelected(new Set(filteredHasilSAW.map(r => r.masyarakatId)));
-  const clearAll = () => setSelected(new Set());
+  const deselectAll = () => {
+    if (isApproved) return;
+    setSelectedIds([]);
+  };
 
-  const approve = async () => {
-    if (selected.size === 0) { toast.error('Pilih minimal 1 penerima untuk disetujui'); return; }
-    const approvedList = Array.from(selected);
-    try {
-      await axios.post('/api/penilaian/approve', { periode, approvedIds: approvedList });
-      setData({ ...data, approvedIds: { ...data.approvedIds, [periode]: approvedList } });
-      toast.success(`Berhasil menyetujui ${selected.size} penerima bansos!`);
-      setConfirmApprove(false);
-    } catch (e) {
-      toast.error('Gagal menyimpan persetujuan.');
+  const getSanggahansForWarga = (masyarakatId: number): Sanggahan[] => {
+    return sanggahans.filter(s => s.warga_dilaporkan_id === masyarakatId && s.status === 'diverifikasi_valid');
+  };
+
+  const handleApprove = async () => {
+    if (selectedIds.length === 0) {
+      toast.error('PILIH MINIMAL 1 PENERIMA YANG DISETUJUI');
+      return;
     }
-  };
 
-  const reject = async () => {
+    setSaving(true);
     try {
-      await axios.post('/api/penilaian/approve', { periode, approvedIds: [] });
-      setData({ ...data, approvedIds: { ...data.approvedIds, [periode]: [] } });
-      setSelected(new Set());
-      toast.success('Semua persetujuan berhasil dibatalkan');
-      setConfirmReject(false);
-    } catch (e) {
-      toast.error('Gagal membatalkan persetujuan.');
-    }
-  };
-
-  const openCatatan = (item: HasilSAWItem) => {
-    setSelectedHasil(item);
-    setCatatanText(item.catatan || '');
-    setCatatanModalOpen(true);
-  };
-
-  const saveCatatan = async () => {
-    if (!selectedHasil) return;
-    setSavingCatatan(true);
-    try {
-      await axios.post('/api/penilaian/save-catatan', {
-        masyarakatId: selectedHasil.masyarakatId,
-        periode: periode,
-        catatan: catatanText
+      const res = await axios.post('/api/penilaian/approve', {
+        periode: data.activePeriode,
+        jenis_bantuan_id: selectedBantuanId,
+        approvedIds: selectedIds,
       });
-      
-      const newData = { ...data };
-      const idx = newData.hasilSAW.findIndex(h => h.masyarakatId === selectedHasil.masyarakatId && h.periode === periode);
-      if (idx !== -1) {
-        newData.hasilSAW[idx].catatan = catatanText;
-        setData(newData);
-      }
-      
-      toast.success('Catatan berhasil disimpan');
-      setCatatanModalOpen(false);
-    } catch (e) {
-      toast.error('Gagal menyimpan catatan');
+
+      // Update local state
+      const newApproved = { ...data.approvedIds, [approvalKey]: selectedIds };
+      setData({ ...data, approvedIds: newApproved });
+      setApprovalResult(res.data);
+      toast.success(`${res.data.total_approved} PENERIMA BERHASIL DISETUJUI!`);
+    } catch (e: any) {
+      toast.error('GAGAL MENYIMPAN PERSETUJUAN: ' + (e.response?.data?.message || ''));
     } finally {
-      setSavingCatatan(false);
+      setSaving(false);
     }
   };
 
-  if (!sawProcessed) {
-    return (
-      <div className="space-y-5">
-        <div>
-          <h2 className="text-gray-900 font-semibold">Validasi Penerima Bansos</h2>
-          <p className="text-sm text-muted-foreground">Tinjau dan sahkan hasil ranking dari sistem SPK</p>
-        </div>
-        <div className="bg-white rounded-xl border border-border p-10 text-center">
-          <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="font-medium text-gray-600">Belum Ada Data untuk Divalidasi</p>
-          <p className="text-sm text-muted-foreground mt-1">Admin belum menyelesaikan perhitungan SAW. Silakan hubungi operator sistem.</p>
-        </div>
-      </div>
-    );
-  }
+  const handleResetApproval = async () => {
+    setResettingApproval(true);
+    try {
+      await axios.post('/api/penilaian/reset-approval', {
+        periode: data.activePeriode,
+        jenis_bantuan_id: selectedBantuanId,
+      });
+      // Reset approval state locally
+      const newApproved = { ...data.approvedIds };
+      delete newApproved[approvalKey];
+      // Update hasilSAW status_approval back to 'pending'
+      const newHasilSAW = data.hasilSAW.map(h => {
+        if (h.periode === data.activePeriode && h.jenis_bantuan_id == selectedBantuanId) {
+          return { ...h, status_approval: 'pending' as const };
+        }
+        return h;
+      });
+      // Remove klaim bantuans for this program
+      const affectedHasilIds = hasilForCategory.map(h => h.id);
+      const newKlaimBantuans = data.klaimBantuans.filter(k => !affectedHasilIds.includes(k.hasil_saw_id));
+      setData({ ...data, approvedIds: newApproved, hasilSAW: newHasilSAW, klaimBantuans: newKlaimBantuans });
+      setApprovalResult(null);
+      setSelectedIds(hasilForCategory.filter(h => h.status === 'Layak').map(h => h.masyarakatId));
+      toast.success('Pengesahan berhasil dibatalkan, status dikembalikan ke pending');
+    } catch (e: any) {
+      toast.error('GAGAL MEMBATALKAN PENGESAHAN: ' + (e.response?.data?.message || ''));
+    } finally {
+      setResettingApproval(false);
+      setConfirmResetApproval(false);
+    }
+  };
+
+  const currentProgram = data.jenisBantuan.find(j => j.id === selectedBantuanId);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Validasi Penerima Bansos</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Tinjau hasil ranking dan berikan persetujuan (ACC) untuk penerima bansos
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-bold text-slate-600 whitespace-nowrap">Periode:</label>
-          <input 
-            type="month" 
-            value={periode} 
-            onChange={e => {
-              setPeriode(e.target.value);
-              setSelected(new Set(data.approvedIds[e.target.value] || []));
-            }}
-            className="px-4 py-2 border border-slate-200 rounded-xl shadow-sm text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all bg-white"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100/30 border border-blue-200/60 rounded-2xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
-          <div className="bg-blue-100/80 p-3 rounded-xl">
-            <Users className="w-7 h-7 text-blue-600 flex-shrink-0" />
-          </div>
+    <div className="space-y-6 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Header */}
+      <div className="bg-white rounded-none border-4 border-[#1E3A5F] p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-blue-600/80 mb-0.5">Total Kandidat</p>
-            <p className="text-2xl font-bold text-blue-900">{filteredHasilSAW.length} <span className="text-base font-medium text-blue-700/70">Orang</span></p>
+            <h2 className="text-2xl font-black text-[#1E3A5F] tracking-tight flex items-center gap-3 uppercase">
+              <div className="bg-blue-200 border-2 border-[#1E3A5F] p-2 rounded-none"><ShieldCheck className="w-6 h-6 text-[#1E3A5F]" /></div>
+              VALIDASI PENERIMA BANTUAN
+            </h2>
+            <p className="text-[#64748B] text-[10px] font-bold uppercase tracking-widest mt-2">SAHKAN HASIL PERHITUNGAN SAW DAN TENTUKAN PENERIMA BANTUAN</p>
           </div>
-        </div>
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/30 border border-emerald-200/60 rounded-2xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
-          <div className="bg-emerald-100/80 p-3 rounded-xl">
-            <CheckCircle2 className="w-7 h-7 text-emerald-600 flex-shrink-0" />
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-emerald-600/80 mb-0.5">Kuota Tersedia</p>
-            <p className="text-2xl font-bold text-emerald-900">{data.kuotaBansos} <span className="text-base font-medium text-emerald-700/70">Orang</span></p>
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-violet-50 to-violet-100/30 border border-violet-200/60 rounded-2xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
-          <div className="bg-violet-100/80 p-3 rounded-xl">
-            <CheckCircle2 className="w-7 h-7 text-violet-600 flex-shrink-0" />
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-violet-600/80 mb-0.5">Dipilih Saat Ini</p>
-            <p className="text-2xl font-bold text-violet-900">{selected.size} <span className="text-base font-medium text-violet-700/70">Orang</span></p>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-col gap-2 min-w-[150px]">
+              <label className="text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">PILIH PERIODE</label>
+              <div className="relative">
+                <select
+                  value={data.activePeriode}
+                  onChange={e => setData({ ...data, activePeriode: e.target.value })}
+                  className="w-full px-4 py-3 text-xs font-bold uppercase rounded-none border-2 border-[#1E3A5F] bg-white appearance-none focus:outline-none focus:border-blue-600 transition-colors"
+                  style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%231E3A5F' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 7l5 5 5-5'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.75rem center', backgroundSize: '1.5em 1.5em', backgroundRepeat: 'no-repeat' }}
+                >
+                  {(data.availablePeriods || ['2026-06']).map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-2 min-w-[220px]">
+              <label className="text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">PILIH PROGRAM</label>
+              <div className="relative">
+                <select
+                  value={selectedBantuanId || ''}
+                  onChange={e => setSelectedBantuanId(parseInt(e.target.value) || null)}
+                  className="w-full px-4 py-3 text-xs font-bold uppercase rounded-none border-2 border-[#1E3A5F] bg-white appearance-none focus:outline-none focus:border-blue-600 transition-colors"
+                  style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%231E3A5F' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 7l5 5 5-5'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.75rem center', backgroundSize: '1.5em 1.5em', backgroundRepeat: 'no-repeat' }}
+                >
+                  <option value="">-- PILIH PROGRAM --</option>
+                  {data.jenisBantuan.map(j => (
+                    <option key={j.id} value={j.id}>{j.nama_program.toUpperCase()}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {isPeriodeApproved && (
-        <div className="flex items-start gap-3 px-5 py-4 bg-emerald-50 border border-emerald-200/60 rounded-2xl text-sm text-emerald-800 shadow-sm animate-in slide-in-from-top-2">
-          <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0 text-emerald-600" />
-          <span className="leading-relaxed">Anda telah menyetujui <strong>{approvedInPeriode.length} penerima</strong> bansos untuk periode ini. Laporan sudah dapat dicetak oleh Admin.</span>
+      {!selectedBantuanId && (
+        <div className="bg-white rounded-none border-4 border-[#1E3A5F] p-12 text-center">
+          <ShieldCheck className="w-12 h-12 text-[#E2E8F0] mx-auto mb-4" />
+          <p className="font-black text-[#1E3A5F] uppercase tracking-widest text-lg">PILIH PROGRAM BANTUAN</p>
+          <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest mt-2 max-w-sm mx-auto">PILIH PROGRAM BANTUAN DI ATAS UNTUK MELIHAT HASIL SAW DAN MENVALIDASI PENERIMA.</p>
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
-            <div>
-              <h3 className="font-bold text-slate-800 text-lg">Tabel Hasil Ranking SAW</h3>
-              <p className="text-sm text-slate-500 mt-1">Pilih warga yang memenuhi syarat untuk menerima bansos</p>
+      {selectedBantuanId && hasilForCategory.length === 0 && (
+        <div className="bg-white rounded-none border-4 border-[#1E3A5F] p-12 text-center">
+          <FileText className="w-12 h-12 text-[#E2E8F0] mx-auto mb-4" />
+          <p className="font-black text-[#1E3A5F] uppercase tracking-widest text-lg">BELUM ADA HASIL SAW</p>
+          <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest mt-2 max-w-md mx-auto">ADMIN BELUM MEMPROSES PERHITUNGAN SAW UNTUK PROGRAM <strong className="text-[#1E3A5F]">{currentProgram?.nama_program.toUpperCase()}</strong> PERIODE {data.activePeriode}.</p>
+        </div>
+      )}
+
+      {selectedBantuanId && hasilForCategory.length > 0 && (
+        <>
+          {/* Status Bar */}
+          {isApproved && (
+            <div className="bg-emerald-300 border-4 border-[#1E3A5F] rounded-none p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-6 h-6 text-[#1E3A5F] flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-black text-[#1E3A5F] uppercase tracking-widest">DATA SUDAH DISAHKAN</p>
+                  <p className="text-[10px] font-bold text-[#1E3A5F] mt-1 uppercase tracking-widest">{alreadyApproved.length} PENERIMA DISETUJUI UNTUK PERIODE {data.activePeriode}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setConfirmResetApproval(true)}
+                disabled={resettingApproval}
+                className="flex items-center gap-2 px-4 py-2.5 border-2 border-[#1E3A5F] bg-white text-red-600 text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white disabled:opacity-50 transition-colors"
+              >
+                {resettingApproval ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                BATALKAN PENGESAHAN
+              </button>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {!isPeriodeApproved && (
-                <>
-                  <button onClick={selectByKuota} className="px-4 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors">
-                    Pilih {data.kuotaBansos} Teratas
-                  </button>
-                  <button onClick={selectAll} className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors">
-                    Pilih Semua
-                  </button>
-                  <button onClick={clearAll} className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors">
-                    Batal Semua
-                  </button>
-                </>
+          )}
+
+          {/* Sanggahan Alert */}
+          {sanggahans.filter(s => s.status === 'diverifikasi_valid').length > 0 && (
+            <div className="bg-amber-300 border-4 border-[#1E3A5F] rounded-none p-4 flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-[#1E3A5F] flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-black text-[#1E3A5F] uppercase tracking-widest">ADA {sanggahans.filter(s => s.status === 'diverifikasi_valid').length} SANGGAHAN TERVERIFIKASI VALID</p>
+                <p className="text-[10px] font-bold text-[#1E3A5F] mt-1 uppercase tracking-widest">PERHATIKAN CALON PENERIMA YANG MEMILIKI SANGGAHAN VALID SEBELUM MENYETUJUI.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Approval Result */}
+          {approvalResult && (
+            <div className="bg-blue-100 border-4 border-[#1E3A5F] rounded-none p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Send className="w-6 h-6 text-[#1E3A5F]" />
+                <h3 className="text-sm font-black text-[#1E3A5F] uppercase tracking-widest">NOTIFIKASI WHATSAPP</h3>
+              </div>
+              {approvalResult.klaim_results?.length > 0 ? (
+                <div className="space-y-3">
+                  {approvalResult.klaim_results.map((kr: any, i: number) => (
+                    <div key={i} className="flex items-center gap-4 text-xs bg-white rounded-none p-4 border-2 border-[#1E3A5F]">
+                      <QrCode className="w-5 h-5 text-[#1E3A5F] flex-shrink-0" />
+                      <span className="flex-1 font-black text-[#1E3A5F] uppercase tracking-wider">{kr.nama}</span>
+                      <span className="font-bold text-blue-600">{kr.kode_klaim}</span>
+                      <span className={`px-3 py-1 border-2 border-[#1E3A5F] text-[10px] font-black uppercase tracking-widest ${kr.status_kirim_wa === 'terkirim' ? 'bg-emerald-300 text-[#1E3A5F]' : 'bg-rose-300 text-[#1E3A5F]'}`}>
+                        WA: {kr.status_kirim_wa}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">KODE KLAIM SUDAH DIBUAT SEBELUMNYA.</p>
               )}
             </div>
-          </div>
-        </div>
+          )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide w-12">
-                  <input
-                    type="checkbox"
-                    checked={selected.size > 0 && selected.size === filteredHasilSAW.length}
-                    onChange={() => { if (!isPeriodeApproved) { selected.size === filteredHasilSAW.length ? clearAll() : selectAll() } }}
-                    disabled={isPeriodeApproved}
-                    className="w-4 h-4 accent-blue-600 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ranking</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Nama Kepala Keluarga</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Alamat</th>
-                <th className="text-center px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Nilai SAW</th>
-                <th className="text-center px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rekomendasi</th>
-                <th className="text-center px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredHasilSAW.map(r => {
-                const isSelected = selected.has(r.masyarakatId);
-                return (
-                  <tr
-                    key={r.masyarakatId}
-                    onClick={() => { if (!isPeriodeApproved) toggleSelect(r.masyarakatId) }}
-                    className={`transition-colors ${!isPeriodeApproved ? 'cursor-pointer' : ''} ${isSelected ? 'bg-blue-50/50' : r.ranking <= data.kuotaBansos ? 'bg-emerald-50/20 hover:bg-emerald-50/50' : 'hover:bg-slate-50'}`}
-                  >
-                    <td className="px-4 py-4 text-center">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => { if (!isPeriodeApproved) toggleSelect(r.masyarakatId) }}
-                        onClick={e => e.stopPropagation()}
-                        disabled={isPeriodeApproved}
-                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      />
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
-                        r.ranking <= 3 ? 'bg-amber-100 text-amber-700' :
-                        r.ranking <= data.kuotaBansos ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                      }`}>
-                        {r.ranking}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 font-bold text-slate-800">{r.namaMasyarakat}</td>
-                    <td className="px-5 py-4 text-slate-500 hidden md:table-cell truncate max-w-[180px]" title={r.alamat}>{r.alamat}</td>
-                    <td className="px-5 py-4 text-center font-mono font-bold text-blue-700">{r.nilaiAkhir.toFixed(4)}</td>
-                    <td className="px-5 py-4 text-center">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${r.status === 'Layak' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-rose-50 text-rose-700 border border-rose-200/60'}`}>
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-center">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); openCatatan(r); }}
-                        className={`p-2 rounded-xl transition-colors ${r.catatan ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
-                        title={r.catatan ? 'Lihat/Edit Catatan' : 'Beri Catatan'}
-                      >
-                        <MessageSquare className="w-4 h-4" />
-                      </button>
-                    </td>
+          {/* Action Buttons */}
+          {!isApproved && (
+            <div className="flex items-center justify-between">
+              <div className="flex gap-3">
+                <button onClick={selectAll} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest bg-white border-2 border-[#1E3A5F] text-[#1E3A5F] hover:bg-[#1E3A5F] hover:text-white transition-colors">PILIH SEMUA</button>
+                <button onClick={deselectAll} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest bg-white border-2 border-[#1E3A5F] text-[#1E3A5F] hover:bg-[#1E3A5F] hover:text-white transition-colors">HAPUS SEMUA</button>
+              </div>
+              <p className="text-[10px] font-black text-[#64748B] uppercase tracking-widest"><strong className="text-[#1E3A5F] text-sm">{selectedIds.length}</strong> DARI {hasilForCategory.length} DIPILIH</p>
+            </div>
+          )}
+
+          {/* Results Table */}
+          <div className="bg-white rounded-none border-4 border-[#1E3A5F] overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[#FAFAFA] border-b-4 border-[#1E3A5F]">
+                    <th className="text-center px-4 py-4 w-12 border-r-2 border-[#1E3A5F]">
+                      <span className="text-[10px] font-black text-[#1E3A5F]">{isApproved ? 'âœ“' : 'â˜ '}</span>
+                    </th>
+                    <th className="text-center px-4 py-4 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest border-r-2 border-[#1E3A5F]">RANK</th>
+                    <th className="text-left px-5 py-4 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest border-r-2 border-[#1E3A5F]">NAMA CALON</th>
+                    <th className="text-center px-4 py-4 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest border-r-2 border-[#1E3A5F]">NILAI SAW</th>
+                    <th className="text-center px-4 py-4 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest border-r-2 border-[#1E3A5F]">STATUS</th>
+                    <th className="text-center px-4 py-4 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest border-r-2 border-[#1E3A5F]">SANGGAHAN</th>
+                    <th className="text-center px-4 py-4 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">KEPUTUSAN</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center gap-4 justify-between">
-          <p className="text-sm text-slate-500 font-medium">
-            <strong className="text-slate-800 text-base">{selected.size}</strong> dari {filteredHasilSAW.length} kandidat dipilih
-          </p>
-          <div className="flex gap-3">
-            {isPeriodeApproved ? (
-              <button
-                onClick={() => setConfirmReject(true)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 text-sm font-bold hover:bg-rose-100 transition-colors shadow-sm"
-              >
-                <XCircle className="w-4 h-4" />
-                Batalkan Validasi
-              </button>
-            ) : (
-              <button
-                onClick={() => setConfirmApprove(true)}
-                disabled={selected.size === 0}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                VALIDASI (ACC) DATA TERPILIH
-              </button>
-            )}
+                </thead>
+                <tbody className="divide-y-2 divide-[#1E3A5F]">
+                  {hasilForCategory.map(h => {
+                    const isSelected = selectedIds.includes(h.masyarakatId);
+                    const wargaSanggahans = getSanggahansForWarga(h.masyarakatId);
+                    const hasSanggahan = wargaSanggahans.length > 0;
+                    const isLayak = h.status === 'Layak';
+                    
+                    return (
+                      <tr key={h.masyarakatId} className={`transition-colors ${isSelected ? 'bg-blue-50/50' : 'hover:bg-[#FAFAFA]'}`}>
+                        <td className={`text-center px-4 py-4 border-r-2 border-[#1E3A5F] ${hasSanggahan ? 'border-l-8 border-l-amber-400' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(h.masyarakatId)}
+                            disabled={isApproved}
+                            className="w-5 h-5 rounded-none border-2 border-[#1E3A5F] text-[#1E3A5F] focus:ring-0 focus:ring-offset-0 disabled:opacity-50 transition-all cursor-pointer"
+                          />
+                        </td>
+                        <td className="text-center px-4 py-4 border-r-2 border-[#1E3A5F]">
+                          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-none border-2 border-[#1E3A5F] text-xs font-black ${
+                            h.ranking <= 3 ? 'bg-amber-300 text-[#1E3A5F]' : 'bg-[#FAFAFA] text-[#1E3A5F]'
+                          }`}>
+                            {h.ranking}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 border-r-2 border-[#1E3A5F]">
+                          <p className="font-black text-[#1E3A5F] text-sm uppercase tracking-wider">{h.namaMasyarakat}</p>
+                          <p className="text-[10px] font-bold text-[#64748B] mt-1 uppercase tracking-widest">{h.alamat}</p>
+                        </td>
+                        <td className="text-center px-4 py-4 border-r-2 border-[#1E3A5F]">
+                          <span className="font-black text-[#1E3A5F] text-lg">{(h.nilaiAkhir * 100).toFixed(1)}%</span>
+                        </td>
+                        <td className="text-center px-4 py-4 border-r-2 border-[#1E3A5F]">
+                          <span className={`inline-flex items-center px-3 py-1 border-2 border-[#1E3A5F] rounded-none text-[10px] font-black uppercase tracking-widest ${isLayak ? 'bg-emerald-300 text-[#1E3A5F]' : 'bg-rose-300 text-[#1E3A5F]'}`}>
+                            {h.status}
+                          </span>
+                        </td>
+                        <td className="text-center px-4 py-4 border-r-2 border-[#1E3A5F]">
+                          {hasSanggahan ? (
+                            <button onClick={() => setSanggahanDetail(wargaSanggahans[0])}
+                              className="inline-flex items-center gap-2 px-3 py-1 border-2 border-[#1E3A5F] bg-amber-300 text-[#1E3A5F] text-[10px] font-black uppercase tracking-widest hover:bg-amber-400 transition-colors"
+                            >
+                              <AlertTriangle className="w-3 h-3" />
+                              {wargaSanggahans.length} LAPORAN
+                            </button>
+                          ) : (
+                            <span className="text-[10px] font-black text-[#64748B]">-</span>
+                          )}
+                        </td>
+                        <td className="text-center px-4 py-4">
+                          {isApproved ? (
+                            <span className={`inline-flex items-center gap-1 px-3 py-1 border-2 border-[#1E3A5F] rounded-none text-[10px] font-black uppercase tracking-widest ${
+                              isSelected ? 'bg-emerald-300 text-[#1E3A5F]' : 'bg-rose-300 text-[#1E3A5F]'
+                            }`}>
+                              {isSelected ? <><CheckCircle2 className="w-3 h-3" />DISETUJUI</> : <><XCircle className="w-3 h-3" />DITOLAK</>}
+                            </span>
+                          ) : (
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${isSelected ? 'text-[#2563EB]' : 'text-[#64748B]'}`}>
+                              {isSelected ? 'AKAN DISETUJUI' : 'AKAN DITOLAK'}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <ConfirmDialog
-        open={confirmApprove}
-        title="Konfirmasi Persetujuan"
-        message={`Anda akan menyetujui ${selected.size} penerima bansos. Setelah disetujui, laporan dapat dicetak. Lanjutkan?`}
-        onConfirm={approve}
-        onCancel={() => setConfirmApprove(false)}
-        confirmLabel="Ya, Setujui"
-        confirmClass="px-4 py-2 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition-colors"
-      />
-      <ConfirmDialog
-        open={confirmReject}
-        title="Batalkan Persetujuan"
-        message="Apakah Anda yakin ingin membatalkan semua persetujuan? Laporan tidak akan bisa dicetak sebelum disetujui kembali."
-        onConfirm={reject}
-        onCancel={() => setConfirmReject(false)}
-        confirmLabel="Ya, Batalkan"
-      />
-      
-      {/* Catatan Modal */}
-      {catatanModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3 bg-blue-50/50">
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <MessageSquare className="w-5 h-5 text-blue-700" />
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-900">Catatan Validasi</h3>
-                <p className="text-xs text-gray-500">Beri catatan untuk {selectedHasil?.namaMasyarakat}</p>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              <textarea
-                value={catatanText}
-                onChange={(e) => setCatatanText(e.target.value)}
-                placeholder="Contoh: Dibatalkan karena warga sudah pindah domisili..."
-                className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
-              />
-            </div>
-            
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
-              <button
-                onClick={() => setCatatanModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          {/* Approve Button */}
+          {!isApproved && (
+            <div className="flex justify-end pt-4">
+              <button onClick={handleApprove} disabled={saving || selectedIds.length === 0}
+                className="flex items-center gap-2 px-8 py-4 border-4 border-[#1E3A5F] bg-[#1E3A5F] text-white text-sm font-black uppercase tracking-widest hover:bg-white hover:text-[#1E3A5F] transition-colors disabled:opacity-50 disabled:hover:bg-[#1E3A5F] disabled:hover:text-white"
               >
-                Batal
+                {saving ? (
+                  <><Loader2 className="w-5 h-5 animate-spin" />MEMPROSES & MENGIRIM WA...</>
+                ) : (
+                  <><ShieldCheck className="w-5 h-5" />SAHKAN {selectedIds.length} PENERIMA</>
+                )}
               </button>
-              <button
-                onClick={saveCatatan}
-                disabled={savingCatatan}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
-                {savingCatatan ? 'Menyimpan...' : 'Simpan Catatan'}
-              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Sanggahan Detail Modal */}
+      {sanggahanDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1E3A5F]/80 p-4" onClick={() => setSanggahanDetail(null)}>
+          <div className="bg-white rounded-none border-4 border-[#1E3A5F] w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-5 border-b-4 border-[#1E3A5F] bg-amber-300">
+              <h3 className="font-black text-[#1E3A5F] uppercase tracking-widest flex items-center gap-3">
+                <AlertTriangle className="w-6 h-6 text-[#1E3A5F]" />
+                DETAIL SANGGAHAN TERVERIFIKASI
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div><span className="text-[10px] font-black text-[#64748B] block mb-1 uppercase tracking-widest">PELAPOR</span><strong className="text-sm font-black text-[#1E3A5F] uppercase tracking-wider">{sanggahanDetail.warga_pelapor || '-'}</strong></div>
+                <div><span className="text-[10px] font-black text-[#64748B] block mb-1 uppercase tracking-widest">WARGA DILAPORKAN</span><strong className="text-sm font-black text-[#1E3A5F] uppercase tracking-wider">{sanggahanDetail.nama_warga_dilaporkan || sanggahanDetail.warga_dilaporkan?.nama || '-'}</strong></div>
+              </div>
+              <div><span className="text-[10px] font-black text-[#64748B] block mb-2 uppercase tracking-widest">ISI SANGGAHAN</span><p className="text-xs font-bold text-[#1E3A5F] bg-[#FAFAFA] p-4 border-2 border-[#1E3A5F] leading-relaxed">{sanggahanDetail.isi_sanggahan}</p></div>
+              {sanggahanDetail.catatan_admin && (
+                <div><span className="text-[10px] font-black text-[#2563EB] block mb-2 uppercase tracking-widest">CATATAN VERIFIKASI ADMIN</span><p className="text-xs font-bold text-[#1E3A5F] bg-blue-50 p-4 border-2 border-[#1E3A5F] leading-relaxed">{sanggahanDetail.catatan_admin}</p></div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t-4 border-[#1E3A5F] bg-[#FAFAFA] flex justify-end">
+              <button onClick={() => setSanggahanDetail(null)} className="px-6 py-3 border-2 border-[#1E3A5F] bg-white text-[#1E3A5F] text-[10px] font-black uppercase tracking-widest hover:bg-[#1E3A5F] hover:text-white transition-colors">TUTUP</button>
             </div>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmResetApproval}
+        title="BATALKAN PENGESAHAN"
+        message={`Yakin ingin membatalkan pengesahan untuk program ${currentProgram?.nama_program || ''} periode ${data.activePeriode}? Status akan dikembalikan ke 'pending' dan klaim bantuan yang sudah dibuat akan dihapus.`}
+        confirmLabel="YA, BATALKAN"
+        onConfirm={handleResetApproval}
+        onCancel={() => setConfirmResetApproval(false)}
+      />
     </div>
   );
 }

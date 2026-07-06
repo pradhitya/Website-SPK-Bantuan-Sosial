@@ -72,7 +72,10 @@ export function DataKriteria({ data, setData }: Props) {
         setData({ ...data, kriteria: data.kriteria.map(k => k.id === editKriteria.id ? { ...k, ...res.data } : k) });
         toast.success('Kriteria berhasil diperbarui');
       } else {
-        const res = await axios.post('/api/kriteria', kriteriaForm);
+        const res = await axios.post('/api/kriteria', { 
+          ...kriteriaForm, 
+          jenis_bantuan_id: data.activeJenisBantuanId 
+        });
         setData({ ...data, kriteria: [...data.kriteria, res.data] });
         toast.success('Kriteria berhasil ditambahkan');
       }
@@ -143,80 +146,80 @@ export function DataKriteria({ data, setData }: Props) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Data Kriteria & Bobot</h2>
-          <p className="text-sm text-slate-500 mt-1">Kelola parameter dan bobot untuk perhitungan rekomendasi SPK</p>
+          <h2 className="text-2xl font-black text-[#1E3A5F] tracking-tight uppercase">DATA KRITERIA & BOBOT</h2>
+          <p className="text-[#64748B] text-[10px] font-bold uppercase tracking-widest mt-1">KELOLA PARAMETER DAN BOBOT UNTUK PERHITUNGAN REKOMENDASI SPK</p>
         </div>
-        <button onClick={openAddKriteria} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm hover:shadow transition-all duration-200">
+        <button onClick={openAddKriteria} className="flex items-center gap-2 px-4 py-2.5 rounded-none border-2 border-[#1E3A5F] bg-[#1E3A5F] text-white text-xs font-black uppercase tracking-widest hover:bg-white hover:text-[#1E3A5F] transition-colors shadow-none">
           <Plus className="w-4 h-4" />
-          <span>Tambah Kriteria</span>
+          <span>TAMBAH KRITERIA</span>
         </button>
       </div>
 
       {totalBobot !== 100 && (
-        <div className="flex items-start gap-3 px-5 py-4 bg-amber-50 border border-amber-200 rounded-xl shadow-sm text-sm text-amber-800 animate-in fade-in slide-in-from-top-2">
-          <Info className="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-500" />
+        <div className="flex items-start gap-4 px-6 py-5 bg-amber-400 border-4 border-[#1E3A5F] shadow-none text-sm text-[#1E3A5F] rounded-none animate-in fade-in slide-in-from-top-2">
+          <Info className="w-6 h-6 mt-0.5 flex-shrink-0 text-[#1E3A5F]" />
           <div>
-            <p className="font-bold text-amber-900 mb-0.5">Peringatan Bobot Tidak Valid</p>
-            <p>Total bobot saat ini adalah <strong>{totalBobot}%</strong>. Total bobot dari seluruh kriteria harus tepat berjumlah <strong>100%</strong> agar hasil perhitungan metode SAW menjadi valid dan akurat.</p>
+            <p className="font-black text-[#1E3A5F] uppercase tracking-widest mb-1">PERINGATAN BOBOT TIDAK VALID</p>
+            <p className="font-bold text-[10px] uppercase tracking-widest leading-relaxed">TOTAL BOBOT SAAT INI ADALAH <strong className="text-sm">{totalBobot}%</strong>. TOTAL BOBOT DARI SELURUH KRITERIA HARUS TEPAT BERJUMLAH <strong className="text-sm">100%</strong> AGAR HASIL PERHITUNGAN METODE SAW MENJADI VALID DAN AKURAT.</p>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-none border-4 border-[#1E3A5F] shadow-none overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-100">
-                <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-12">No</th>
-                <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-20">Kode</th>
-                <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nama Kriteria</th>
-                <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Atribut</th>
-                <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Bobot (%)</th>
-                <th className="text-right px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Aksi</th>
+              <tr className="bg-white border-b-4 border-[#1E3A5F]">
+                <th className="text-left px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest w-12">NO</th>
+                <th className="text-left px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest w-20">KODE</th>
+                <th className="text-left px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">NAMA KRITERIA</th>
+                <th className="text-left px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">ATRIBUT</th>
+                <th className="text-left px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">BOBOT (%)</th>
+                <th className="text-right px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">AKSI</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y-2 divide-[#E2E8F0]">
               {data.kriteria.map((k, i) => {
                 const subs = data.subKriteria.filter(s => s.kriteriaId === k.id);
                 const expanded = expandedKriteria === k.id;
                 return (
                   <>
-                    <tr key={k.id} className={`hover:bg-slate-50/80 transition-colors group ${expanded ? 'bg-slate-50/50' : ''}`}>
-                      <td className="px-6 py-4 text-slate-400 font-medium">{i + 1}</td>
-                      <td className="px-6 py-4">
-                        <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">{k.kode}</span>
+                    <tr key={k.id} className={`hover:bg-[#FAFAFA] transition-colors group ${expanded ? 'bg-[#FAFAFA]' : ''}`}>
+                      <td className="px-3 py-3 text-[#1E3A5F] font-black text-sm">{i + 1}</td>
+                      <td className="px-3 py-3">
+                        <span className="font-bold text-[10px] text-[#1E3A5F] bg-white px-3 py-1.5 rounded-none border-2 border-[#1E3A5F] shadow-none inline-block uppercase tracking-widest">{k.kode}</span>
                       </td>
-                      <td className="px-6 py-4 font-semibold text-slate-800">{k.nama}</td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${k.atribut === 'Benefit' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                      <td className="px-3 py-3 font-black text-[#1E3A5F] uppercase tracking-widest">{k.nama}</td>
+                      <td className="px-3 py-3">
+                        <span className={`inline-flex items-center px-3 py-1.5 rounded-none border-2 border-[#1E3A5F] text-[10px] font-black uppercase tracking-widest shadow-none ${k.atribut === 'Benefit' ? 'bg-emerald-400 text-[#1E3A5F]' : 'bg-rose-400 text-[#1E3A5F]'}`}>
                           {k.atribut}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-24 h-2 rounded-full bg-slate-100 overflow-hidden">
-                            <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400" style={{ width: `${k.bobot}%` }} />
+                          <div className="w-24 h-3 rounded-none bg-[#FAFAFA] border-2 border-[#1E3A5F] overflow-hidden">
+                            <div className="h-full bg-[#1E3A5F]" style={{ width: `${k.bobot}%` }} />
                           </div>
-                          <span className="font-bold text-slate-700">{k.bobot}%</span>
+                          <span className="font-black text-[#1E3A5F] text-xs">{k.bobot}%</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-3">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => setExpandedKriteria(expanded ? null : k.id)}
-                            className={`p-2 rounded-lg transition-colors flex items-center gap-1 ${expanded ? 'bg-blue-100 text-blue-700' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
-                            title={expanded ? 'Tutup Sub-Kriteria' : 'Lihat Sub-Kriteria'}
+                            className={`p-1.5 rounded-none border-2 border-[#1E3A5F] transition-colors flex items-center gap-1 shadow-none ${expanded ? 'bg-[#1E3A5F] text-white' : 'bg-white text-[#1E3A5F] hover:bg-[#1E3A5F] hover:text-white'}`}
+                            title={expanded ? 'TUTUP SUB-KRITERIA' : 'LIHAT SUB-KRITERIA'}
                           >
-                            <span className="text-xs font-semibold hidden sm:inline-block">{expanded ? 'Tutup' : 'Sub-Kriteria'}</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline-block">{expanded ? 'TUTUP' : 'SUB-KRITERIA'}</span>
                             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </button>
-                          <button onClick={() => openEditKriteria(k)} className="p-2 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors" title="Edit Kriteria">
+                          <button onClick={() => openEditKriteria(k)} className="p-1.5 rounded-none border-2 border-[#1E3A5F] bg-white text-[#1E3A5F] hover:bg-[#1E3A5F] hover:text-white transition-colors shadow-none" title="EDIT KRITERIA">
                             <Pencil className="w-4 h-4" />
                           </button>
-                          <button onClick={() => setConfirmDelete(k.id)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Hapus Kriteria">
+                          <button onClick={() => setConfirmDelete(k.id)} className="p-1.5 rounded-none border-2 border-[#1E3A5F] bg-white text-red-600 hover:bg-red-600 hover:text-white transition-colors shadow-none" title="HAPUS KRITERIA">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -225,49 +228,49 @@ export function DataKriteria({ data, setData }: Props) {
                     {expanded && (
                       <tr key={`sub-${k.id}`}>
                         <td colSpan={6} className="p-0 border-b-0">
-                          <div className="bg-slate-50/50 px-4 py-6 sm:px-8 shadow-inner">
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6 overflow-hidden">
+                          <div className="bg-[#FAFAFA] px-4 py-6 sm:px-8 shadow-inner border-y-2 border-[#E2E8F0]">
+                            <div className="bg-white rounded-none border-4 border-[#1E3A5F] shadow-none p-5 sm:p-6 overflow-hidden">
                               <div className="pl-0 sm:pl-2">
-                                <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center justify-between mb-6">
                                 <div>
-                                  <h4 className="text-sm font-bold text-slate-800">Daftar Sub-Kriteria</h4>
-                                  <p className="text-xs text-slate-500 mt-0.5">Penilaian untuk parameter {k.nama}</p>
+                                  <h4 className="text-sm font-black text-[#1E3A5F] uppercase tracking-widest">DAFTAR SUB-KRITERIA</h4>
+                                  <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest mt-1">PENILAIAN UNTUK PARAMETER <span className="text-[#1E3A5F] font-black">{k.nama}</span></p>
                                 </div>
                                 <button
                                   onClick={openAddSub}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-blue-600 text-xs font-bold hover:bg-blue-50 hover:border-blue-200 transition-all"
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-none bg-white border-2 border-[#1E3A5F] shadow-none text-[#1E3A5F] text-[10px] font-black uppercase tracking-widest hover:bg-[#1E3A5F] hover:text-white transition-all"
                                 >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  Tambah
+                                  <Plus className="w-4 h-4" />
+                                  TAMBAH
                                 </button>
                               </div>
                               {subs.length === 0 ? (
-                                <div className="bg-white rounded-xl border border-dashed border-slate-300 p-6 text-center">
-                                  <p className="text-sm text-slate-500 font-medium">Belum ada sub-kriteria yang ditambahkan.</p>
+                                <div className="bg-white rounded-none border-4 border-dashed border-[#1E3A5F] p-8 text-center">
+                                  <p className="text-xs text-[#1E3A5F] font-black uppercase tracking-widest opacity-50">BELUM ADA SUB-KRITERIA YANG DITAMBAHKAN.</p>
                                 </div>
                               ) : (
-                                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                                <div className="bg-white rounded-none border-4 border-[#1E3A5F] overflow-hidden shadow-none">
                                   <table className="w-full text-sm">
                                     <thead>
-                                      <tr className="bg-slate-50/50 border-b border-slate-100">
-                                        <th className="text-left px-5 py-3 font-bold text-xs text-slate-500 uppercase tracking-wider">Keterangan / Indikator</th>
-                                        <th className="text-left px-5 py-3 font-bold text-xs text-slate-500 uppercase tracking-wider w-32">Nilai Numerik</th>
-                                        <th className="text-right px-5 py-3 font-bold text-xs text-slate-500 uppercase tracking-wider w-24">Aksi</th>
+                                      <tr className="bg-[#FAFAFA] border-b-4 border-[#1E3A5F]">
+                                        <th className="text-left px-5 py-4 font-black text-[10px] text-[#1E3A5F] uppercase tracking-widest">KETERANGAN / INDIKATOR</th>
+                                        <th className="text-left px-5 py-4 font-black text-[10px] text-[#1E3A5F] uppercase tracking-widest w-32">NILAI NUMERIK</th>
+                                        <th className="text-right px-5 py-4 font-black text-[10px] text-[#1E3A5F] uppercase tracking-widest w-24">AKSI</th>
                                       </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100">
+                                    <tbody className="divide-y-2 divide-[#1E3A5F]">
                                       {subs.sort((a, b) => a.nilai - b.nilai).map(s => (
-                                        <tr key={s.id} className="hover:bg-slate-50/50 transition-colors">
-                                          <td className="px-5 py-3 font-medium text-slate-700">{s.nama}</td>
-                                          <td className="px-5 py-3">
-                                            <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded bg-slate-100 border border-slate-200 font-mono font-bold text-blue-700 text-xs">{s.nilai}</span>
+                                        <tr key={s.id} className="hover:bg-[#FAFAFA] transition-colors">
+                                          <td className="px-5 py-4 font-bold text-[#1E3A5F] text-xs uppercase tracking-widest">{s.nama}</td>
+                                          <td className="px-5 py-4">
+                                            <span className="inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1.5 rounded-none bg-white border-2 border-[#1E3A5F] font-black text-[#1E3A5F] text-xs shadow-none">{s.nilai}</span>
                                           </td>
-                                          <td className="px-5 py-3">
-                                            <div className="flex justify-end gap-1">
-                                              <button onClick={() => openEditSub(s)} className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                                          <td className="px-5 py-4">
+                                            <div className="flex justify-end gap-2">
+                                              <button onClick={() => openEditSub(s)} className="p-2 rounded-none border-2 border-[#1E3A5F] bg-white text-[#1E3A5F] hover:bg-[#1E3A5F] hover:text-white transition-colors shadow-none">
                                                 <Pencil className="w-3.5 h-3.5" />
                                               </button>
-                                              <button onClick={() => setConfirmDeleteSub(s.id)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                                              <button onClick={() => setConfirmDeleteSub(s.id)} className="p-2 rounded-none border-2 border-[#1E3A5F] bg-white text-red-600 hover:bg-red-600 hover:text-white transition-colors shadow-none">
                                                 <Trash2 className="w-3.5 h-3.5" />
                                               </button>
                                             </div>
@@ -289,15 +292,15 @@ export function DataKriteria({ data, setData }: Props) {
               })}
             </tbody>
             <tfoot>
-              <tr className="bg-slate-50 border-t border-slate-200">
-                <td colSpan={4} className="px-6 py-4 text-sm font-bold text-slate-600 text-right uppercase tracking-wider">Total Bobot Sistem:</td>
-                <td className="px-6 py-4">
+              <tr className="bg-[#FAFAFA] border-t-4 border-[#1E3A5F]">
+                <td colSpan={4} className="px-3 py-4 text-[10px] font-black text-[#1E3A5F] text-right uppercase tracking-widest">TOTAL BOBOT SISTEM:</td>
+                <td className="px-3 py-4">
                   <div className="flex items-center gap-2">
-                    <span className={`text-lg font-black ${totalBobot === 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{totalBobot}%</span>
+                    <span className={`text-lg font-black ${totalBobot === 100 ? 'text-emerald-500' : 'text-rose-600'}`}>{totalBobot}%</span>
                     {totalBobot === 100 ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                      <CheckCircle2 className="w-6 h-6 text-emerald-500" />
                     ) : (
-                      <Info className="w-5 h-5 text-rose-500" />
+                      <Info className="w-6 h-6 text-rose-500" />
                     )}
                   </div>
                 </td>
@@ -311,56 +314,58 @@ export function DataKriteria({ data, setData }: Props) {
       {/* Modal Kriteria */}
       {showKriteriaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowKriteriaModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md z-10">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="font-semibold text-gray-900">{editKriteria ? 'Edit Kriteria' : 'Tambah Kriteria Baru'}</h3>
-              <button onClick={() => setShowKriteriaModal(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowKriteriaModal(false)} />
+          <div className="relative bg-white rounded-none border-4 border-[#1E3A5F] shadow-none w-full max-w-md z-10 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-5 border-b-4 border-[#1E3A5F] bg-[#FAFAFA]">
+              <h3 className="font-black text-lg text-[#1E3A5F] uppercase tracking-widest">{editKriteria ? 'EDIT KRITERIA' : 'TAMBAH KRITERIA BARU'}</h3>
+              <button onClick={() => setShowKriteriaModal(false)} className="p-2 rounded-none border-2 border-[#1E3A5F] hover:bg-[#1E3A5F] hover:text-white text-[#1E3A5F] transition-colors shadow-none">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="px-6 py-6 space-y-6">
+              <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Kode Kriteria</label>
+                  <label className="block text-[10px] font-black text-[#1E3A5F] mb-2 uppercase tracking-widest">KODE KRITERIA</label>
                   <input value={kriteriaForm.kode} onChange={e => setKriteriaForm({ ...kriteriaForm, kode: e.target.value })}
-                    placeholder="C1" className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    placeholder="C1" className="w-full px-3 py-3 rounded-none border-2 border-[#1E3A5F] text-sm font-bold uppercase transition-colors focus:outline-none focus:border-[#2563EB] bg-[#FAFAFA] focus:bg-white" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Bobot (%)
+                  <label className="block text-[10px] font-black text-[#1E3A5F] mb-2 uppercase tracking-widest flex items-center gap-1">
+                    BOBOT (%)
                     {(() => {
                       const maxAllowedBobot = 100 - (totalBobot - (editKriteria ? editKriteria.bobot : 0));
-                      return <span className="text-xs text-blue-600 font-normal ml-2">(Maks: {maxAllowedBobot}%)</span>;
+                      return <span className="text-[9px] text-[#2563EB] font-bold uppercase">(MAKS: {maxAllowedBobot}%)</span>;
                     })()}
                   </label>
                   <input type="number" min={1} 
                     max={100 - (totalBobot - (editKriteria ? editKriteria.bobot : 0))} 
                     value={kriteriaForm.bobot} onChange={e => setKriteriaForm({ ...kriteriaForm, bobot: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="w-full px-3 py-3 rounded-none border-2 border-[#1E3A5F] text-sm font-bold uppercase transition-colors focus:outline-none focus:border-[#2563EB] bg-[#FAFAFA] focus:bg-white" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nama Kriteria</label>
+                <label className="block text-[10px] font-black text-[#1E3A5F] mb-2 uppercase tracking-widest">NAMA KRITERIA</label>
                 <input value={kriteriaForm.nama} onChange={e => setKriteriaForm({ ...kriteriaForm, nama: e.target.value })}
-                  placeholder="Contoh: Penghasilan per Bulan" className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  placeholder="CONTOH: PENGHASILAN PER BULAN" className="w-full px-3 py-3 rounded-none border-2 border-[#1E3A5F] text-sm font-bold uppercase transition-colors focus:outline-none focus:border-[#2563EB] bg-[#FAFAFA] focus:bg-white" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Atribut</label>
-                <div className="flex gap-3">
+                <label className="block text-[10px] font-black text-[#1E3A5F] mb-3 uppercase tracking-widest">ATRIBUT</label>
+                <div className="flex flex-col gap-3">
                   {(['Benefit', 'Cost'] as const).map(a => (
-                    <label key={a} className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" checked={kriteriaForm.atribut === a} onChange={() => setKriteriaForm({ ...kriteriaForm, atribut: a })} className="accent-blue-600" />
-                      <span className="text-sm text-gray-700">{a}</span>
-                      <span className="text-xs text-muted-foreground">({a === 'Benefit' ? 'semakin besar semakin baik' : 'semakin kecil semakin baik'})</span>
+                    <label key={a} className={`flex items-start gap-3 cursor-pointer p-3 border-2 transition-all ${kriteriaForm.atribut === a ? 'border-[#1E3A5F] bg-blue-50 shadow-none' : 'border-[#1E3A5F] bg-white opacity-70 hover:opacity-100'}`}>
+                      <input type="radio" checked={kriteriaForm.atribut === a} onChange={() => setKriteriaForm({ ...kriteriaForm, atribut: a })} className="mt-1 w-4 h-4 accent-[#1E3A5F]" />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-black text-[#1E3A5F] uppercase tracking-widest">{a}</span>
+                        <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest mt-1">({a === 'Benefit' ? 'SEMAKIN BESAR SEMAKIN BAIK' : 'SEMAKIN KECIL SEMAKIN BAIK'})</span>
+                      </div>
                     </label>
                   ))}
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-border">
-              <button onClick={() => setShowKriteriaModal(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
-              <button onClick={saveKriteria} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">Simpan</button>
+            <div className="flex justify-end gap-4 px-6 py-5 border-t-4 border-[#1E3A5F] bg-[#FAFAFA]">
+              <button onClick={() => setShowKriteriaModal(false)} className="px-6 py-3 rounded-none border-2 border-[#1E3A5F] text-xs font-black text-[#1E3A5F] hover:bg-[#1E3A5F] hover:text-white uppercase tracking-widest transition-colors shadow-none">BATAL</button>
+              <button onClick={saveKriteria} className="px-6 py-3 rounded-none border-2 border-[#1E3A5F] bg-[#1E3A5F] text-white text-xs font-black hover:bg-white hover:text-[#1E3A5F] uppercase tracking-widest transition-colors shadow-none">SIMPAN</button>
             </div>
           </div>
         </div>
@@ -369,28 +374,28 @@ export function DataKriteria({ data, setData }: Props) {
       {/* Modal Sub-Kriteria */}
       {showSubModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowSubModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm z-10">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="font-semibold text-gray-900">{editSub ? 'Edit Sub-Kriteria' : 'Tambah Sub-Kriteria'}</h3>
-              <button onClick={() => setShowSubModal(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-5 h-5" /></button>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSubModal(false)} />
+          <div className="relative bg-white rounded-none border-4 border-[#1E3A5F] shadow-none w-full max-w-sm z-10 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-5 border-b-4 border-[#1E3A5F] bg-[#FAFAFA]">
+              <h3 className="font-black text-lg text-[#1E3A5F] uppercase tracking-widest">{editSub ? 'EDIT SUB-KRITERIA' : 'TAMBAH SUB-KRITERIA'}</h3>
+              <button onClick={() => setShowSubModal(false)} className="p-2 rounded-none border-2 border-[#1E3A5F] hover:bg-[#1E3A5F] hover:text-white text-[#1E3A5F] transition-colors shadow-none"><X className="w-5 h-5" /></button>
             </div>
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-6 py-6 space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Keterangan / Rentang Nilai</label>
+                <label className="block text-[10px] font-black text-[#1E3A5F] mb-2 uppercase tracking-widest">KETERANGAN / RENTANG NILAI</label>
                 <input value={subForm.nama} onChange={e => setSubForm({ ...subForm, nama: e.target.value })}
-                  placeholder="Contoh: < Rp 500.000" className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  placeholder="CONTOH: < RP 500.000" className="w-full px-3 py-3 rounded-none border-2 border-[#1E3A5F] text-sm font-bold uppercase transition-colors focus:outline-none focus:border-[#2563EB] bg-[#FAFAFA] focus:bg-white" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nilai Numerik (SAW)</label>
+                <label className="block text-[10px] font-black text-[#1E3A5F] mb-2 uppercase tracking-widest">NILAI NUMERIK (SAW)</label>
                 <input type="number" min={1} value={subForm.nilai} onChange={e => setSubForm({ ...subForm, nilai: Number(e.target.value) })}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                <p className="text-xs text-muted-foreground mt-1">Nilai ini digunakan dalam perhitungan SAW.</p>
+                  className="w-full px-3 py-3 rounded-none border-2 border-[#1E3A5F] text-sm font-bold uppercase transition-colors focus:outline-none focus:border-[#2563EB] bg-[#FAFAFA] focus:bg-white" />
+                <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest mt-2 border-l-2 border-[#1E3A5F] pl-2">NILAI INI DIGUNAKAN DALAM PERHITUNGAN SAW.</p>
               </div>
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-border">
-              <button onClick={() => setShowSubModal(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
-              <button onClick={saveSub} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">Simpan</button>
+            <div className="flex justify-end gap-4 px-6 py-5 border-t-4 border-[#1E3A5F] bg-[#FAFAFA]">
+              <button onClick={() => setShowSubModal(false)} className="px-6 py-3 rounded-none border-2 border-[#1E3A5F] text-xs font-black text-[#1E3A5F] hover:bg-[#1E3A5F] hover:text-white uppercase tracking-widest transition-colors shadow-none">BATAL</button>
+              <button onClick={saveSub} className="px-6 py-3 rounded-none border-2 border-[#1E3A5F] bg-[#1E3A5F] text-white text-xs font-black hover:bg-white hover:text-[#1E3A5F] uppercase tracking-widest transition-colors shadow-none">SIMPAN</button>
             </div>
           </div>
         </div>
@@ -398,15 +403,15 @@ export function DataKriteria({ data, setData }: Props) {
 
       <ConfirmDialog
         open={confirmDelete !== null}
-        title="Hapus Kriteria"
-        message="Apakah Anda yakin ingin menghapus kriteria ini? Semua sub-kriteria terkait juga akan terhapus."
+        title="HAPUS KRITERIA"
+        message="APAKAH ANDA YAKIN INGIN MENGHAPUS KRITERIA INI? SEMUA SUB-KRITERIA TERKAIT JUGA AKAN TERHAPUS."
         onConfirm={() => confirmDelete !== null && deleteKriteria(confirmDelete)}
         onCancel={() => setConfirmDelete(null)}
       />
       <ConfirmDialog
         open={confirmDeleteSub !== null}
-        title="Hapus Sub-Kriteria"
-        message="Apakah Anda yakin ingin menghapus sub-kriteria ini?"
+        title="HAPUS SUB-KRITERIA"
+        message="APAKAH ANDA YAKIN INGIN MENGHAPUS SUB-KRITERIA INI?"
         onConfirm={() => confirmDeleteSub !== null && deleteSub(confirmDeleteSub)}
         onCancel={() => setConfirmDeleteSub(null)}
       />

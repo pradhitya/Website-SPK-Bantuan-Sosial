@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, Save, User, Lock, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { User as UserType } from '../../data';
+import axios from 'axios';
 
 interface Props { user: UserType; }
 
@@ -16,148 +17,154 @@ export function PengaturanAkun({ user }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
 
   const saveProfile = async () => {
-    if (!nama.trim()) { toast.error('Nama tidak boleh kosong'); return; }
+    if (!nama.trim()) { toast.error('NAMA TIDAK BOLEH KOSONG'); return; }
     try {
       await axios.put(`/api/users/${user.id}`, { nama, jabatan });
-      toast.success('Profil berhasil diperbarui!');
+      toast.success('PROFIL BERHASIL DIPERBARUI!');
     } catch (e) {
-      toast.error('Gagal memperbarui profil');
+      toast.error('GAGAL MEMPERBARUI PROFIL');
     }
   };
 
   const savePassword = async () => {
     if (newPass.length < 6) {
-      toast.error('Password baru minimal 6 karakter');
+      toast.error('PASSWORD BARU MINIMAL 6 KARAKTER');
       return;
     }
     if (newPass !== confirmPass) {
-      toast.error('Konfirmasi password tidak cocok!');
+      toast.error('KONFIRMASI PASSWORD TIDAK COCOK!');
       return;
     }
     try {
       await axios.put(`/api/users/${user.id}`, { password: newPass });
-      toast.success('Password berhasil diubah!');
+      toast.success('PASSWORD BERHASIL DIUBAH!');
       setOldPass('');
       setNewPass('');
       setConfirmPass('');
     } catch (e) {
-      toast.error('Gagal mengubah password');
+      toast.error('GAGAL MENGUBAH PASSWORD');
     }
   };
 
   return (
-    <div className="space-y-5 max-w-2xl mx-auto">
-      <div className="text-center">
-        <h2 className="text-gray-900 font-semibold">Pengaturan Akun</h2>
-        <p className="text-sm text-muted-foreground">Perbarui informasi profil dan keamanan akun Anda</p>
+    <div className="space-y-6 max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
+      <div>
+        <h2 className="text-2xl font-black text-[#1E3A5F] tracking-tight uppercase">PENGATURAN AKUN</h2>
+        <p className="text-[#64748B] text-[10px] font-bold uppercase tracking-widest mt-1">PERBARUI INFORMASI PROFIL DAN KEAMANAN AKUN ANDA</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-border overflow-hidden">
-        <div className="px-6 py-4 border-b border-border flex items-center gap-3">
-          <User className="w-4 h-4 text-blue-600" />
-          <h3 className="font-semibold text-gray-900">Informasi Profil</h3>
+      <div className="bg-white rounded-none border-4 border-[#1E3A5F] overflow-hidden">
+        <div className="px-6 py-4 border-b-4 border-[#1E3A5F] flex items-center gap-3 bg-[#FAFAFA]">
+          <User className="w-5 h-5 text-[#1E3A5F]" />
+          <h3 className="font-black text-[#1E3A5F] uppercase tracking-widest">INFORMASI PROFIL</h3>
         </div>
-        <div className="px-6 py-5 space-y-4">
-          <div className="flex items-center gap-4 pb-4 border-b border-border">
-            <div className="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-xl font-bold">{user.nama.charAt(0)}</span>
+        <div className="p-6 space-y-6">
+          <div className="flex items-center gap-5 pb-6 border-b-4 border-[#1E3A5F]">
+            <div className="w-16 h-16 rounded-none bg-blue-400 border-4 border-[#1E3A5F] flex items-center justify-center flex-shrink-0">
+              <span className="text-[#1E3A5F] text-2xl font-black">{user.nama.charAt(0).toUpperCase()}</span>
             </div>
             <div>
-              <p className="font-semibold text-gray-900">{user.nama}</p>
-              <p className="text-sm text-muted-foreground">{user.jabatan}</p>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${user.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                {user.role === 'admin' ? 'Admin / Operator' : 'Kepala Desa'}
+              <p className="font-black text-xl text-[#1E3A5F] uppercase tracking-tight">{user.nama}</p>
+              <p className="text-xs font-bold text-[#64748B] uppercase tracking-widest mt-1">{user.jabatan}</p>
+              <span className={`inline-block border-2 border-[#1E3A5F] px-3 py-1 text-[10px] font-black uppercase tracking-widest mt-2 ${user.role === 'admin' ? 'bg-blue-300 text-[#1E3A5F]' : 'bg-emerald-300 text-[#1E3A5F]'}`}>
+                {user.role === 'admin' ? 'ADMIN / OPERATOR' : 'KEPALA DESA'}
               </span>
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap</label>
-            <input
-              value={nama}
-              onChange={e => setNama(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-[10px] font-black text-[#1E3A5F] mb-2 uppercase tracking-widest">NAMA LENGKAP</label>
+              <input
+                value={nama}
+                onChange={e => setNama(e.target.value)}
+                className="w-full px-4 py-3 rounded-none border-2 border-[#1E3A5F] text-sm font-bold focus:outline-none focus:border-[#2563EB] uppercase transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-[#1E3A5F] mb-2 uppercase tracking-widest">JABATAN</label>
+              <input
+                value={jabatan}
+                onChange={e => setJabatan(e.target.value)}
+                className="w-full px-4 py-3 rounded-none border-2 border-[#1E3A5F] text-sm font-bold focus:outline-none focus:border-[#2563EB] uppercase transition-colors"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-[10px] font-black text-[#1E3A5F] mb-2 uppercase tracking-widest">USERNAME</label>
+              <input
+                value={user.username}
+                disabled
+                className="w-full px-4 py-3 rounded-none border-2 border-[#64748B] text-sm font-bold bg-[#E2E8F0] text-[#64748B] cursor-not-allowed uppercase"
+              />
+              <p className="text-[10px] font-bold text-[#64748B] mt-2 uppercase tracking-widest">USERNAME TIDAK DAPAT DIUBAH</p>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Jabatan</label>
-            <input
-              value={jabatan}
-              onChange={e => setJabatan(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-            <input
-              value={user.username}
-              disabled
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-gray-100 text-gray-500 cursor-not-allowed"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Username tidak dapat diubah</p>
-          </div>
-          <div className="flex justify-end">
-            <button onClick={saveProfile} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+          
+          <div className="flex justify-end pt-2">
+            <button onClick={saveProfile} className="flex items-center gap-2 px-6 py-3 border-2 border-[#1E3A5F] bg-[#1E3A5F] text-white text-xs font-black uppercase tracking-widest hover:bg-white hover:text-[#1E3A5F] transition-colors">
               <Save className="w-4 h-4" />
-              Simpan Profil
+              SIMPAN PROFIL
             </button>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-border overflow-hidden">
-        <div className="px-6 py-4 border-b border-border flex items-center gap-3">
-          <Lock className="w-4 h-4 text-blue-600" />
-          <h3 className="font-semibold text-gray-900">Ubah Password</h3>
+      <div className="bg-white rounded-none border-4 border-[#1E3A5F] overflow-hidden">
+        <div className="px-6 py-4 border-b-4 border-[#1E3A5F] flex items-center gap-3 bg-[#FAFAFA]">
+          <Lock className="w-5 h-5 text-[#1E3A5F]" />
+          <h3 className="font-black text-[#1E3A5F] uppercase tracking-widest">UBAH PASSWORD</h3>
         </div>
-        <div className="px-6 py-5 space-y-4">
+        <div className="p-6 space-y-5">
           {[
-            { label: 'Password Lama', value: oldPass, set: setOldPass, show: showOld, toggle: () => setShowOld(!showOld) },
-            { label: 'Password Baru', value: newPass, set: setNewPass, show: showNew, toggle: () => setShowNew(!showNew) },
-            { label: 'Konfirmasi Password Baru', value: confirmPass, set: setConfirmPass, show: showConfirm, toggle: () => setShowConfirm(!showConfirm) },
+            { label: 'PASSWORD LAMA', value: oldPass, set: setOldPass, show: showOld, toggle: () => setShowOld(!showOld) },
+            { label: 'PASSWORD BARU', value: newPass, set: setNewPass, show: showNew, toggle: () => setShowNew(!showNew) },
+            { label: 'KONFIRMASI PASSWORD BARU', value: confirmPass, set: setConfirmPass, show: showConfirm, toggle: () => setShowConfirm(!showConfirm) },
           ].map(field => (
             <div key={field.label}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+              <label className="block text-[10px] font-black text-[#1E3A5F] mb-2 uppercase tracking-widest">{field.label}</label>
               <div className="relative">
                 <input
                   type={field.show ? 'text' : 'password'}
                   value={field.value}
                   onChange={e => field.set(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-3 py-2 pr-10 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 pr-12 rounded-none border-2 border-[#1E3A5F] text-sm font-bold focus:outline-none focus:border-[#2563EB] transition-colors"
                 />
-                <button type="button" onClick={field.toggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  {field.show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <button type="button" onClick={field.toggle} className="absolute right-0 top-0 h-full px-4 flex items-center justify-center border-l-2 border-transparent text-[#64748B] hover:text-[#1E3A5F]">
+                  {field.show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
           ))}
-          <p className="text-xs text-muted-foreground">Password minimal 6 karakter</p>
-          <div className="flex justify-end">
-            <button onClick={savePassword} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+          <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest pt-1">PASSWORD MINIMAL 6 KARAKTER</p>
+          <div className="flex justify-end pt-2">
+            <button onClick={savePassword} className="flex items-center gap-2 px-6 py-3 border-2 border-[#1E3A5F] bg-[#1E3A5F] text-white text-xs font-black uppercase tracking-widest hover:bg-white hover:text-[#1E3A5F] transition-colors">
               <Save className="w-4 h-4" />
-              Ubah Password
+              UBAH PASSWORD
             </button>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-border p-5">
-        <div className="flex items-center gap-3 mb-3">
-          <Settings2 className="w-4 h-4 text-blue-600" />
-          <h3 className="font-semibold text-gray-900">Informasi Sistem</h3>
+      <div className="bg-white rounded-none border-4 border-[#1E3A5F] overflow-hidden">
+        <div className="px-6 py-4 border-b-4 border-[#1E3A5F] flex items-center gap-3 bg-[#FAFAFA]">
+          <Settings2 className="w-5 h-5 text-[#1E3A5F]" />
+          <h3 className="font-black text-[#1E3A5F] uppercase tracking-widest">INFORMASI SISTEM</h3>
         </div>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          {[
-            { label: 'Nama Sistem', value: 'SPK Bansos – Metode SAW' },
-            { label: 'Versi', value: 'v1.0.0' },
-            { label: 'Desa', value: 'Desa Sukamaju' },
-            { label: 'Kecamatan', value: 'Sukajadi, Kab. Bandung' },
-          ].map((item, i) => (
-            <div key={i} className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-muted-foreground">{item.label}</p>
-              <p className="font-medium text-gray-900 mt-0.5">{item.value}</p>
-            </div>
-          ))}
+        <div className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              { label: 'NAMA SISTEM', value: 'SPK BANSOS â€“ METODE SAW' },
+              { label: 'VERSI', value: 'V1.0.0' },
+              { label: 'DESA', value: 'DESA SUKAMAJU' },
+              { label: 'KECAMATAN', value: 'SUKAJADI, KAB. BANDUNG' },
+            ].map((item, i) => (
+              <div key={i} className="bg-[#FAFAFA] border-2 border-[#1E3A5F] p-4">
+                <p className="text-[10px] font-black text-[#64748B] uppercase tracking-widest mb-1">{item.label}</p>
+                <p className="font-black text-sm text-[#1E3A5F] uppercase tracking-wider">{item.value}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

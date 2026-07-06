@@ -17,7 +17,7 @@ export function PengaturanSistem({ data, setData }: Props) {
     e.preventDefault();
     const val = parseInt(kuota, 10);
     if (isNaN(val) || val < 1) {
-      toast.error('Kuota harus berupa angka yang lebih dari 0.');
+      toast.error('KUOTA HARUS BERUPA ANGKA YANG LEBIH DARI 0.');
       return;
     }
 
@@ -25,31 +25,31 @@ export function PengaturanSistem({ data, setData }: Props) {
     try {
       const response = await axios.post('/api/settings', { kuotaBansos: val });
       setData({ ...data, kuotaBansos: val });
-      toast.success(response.data.message || 'Pengaturan berhasil disimpan.');
+      toast.success(response.data.message || 'PENGATURAN BERHASIL DISIMPAN.');
     } catch (err) {
       console.error(err);
-      toast.error('Gagal menyimpan pengaturan.');
+      toast.error('GAGAL MENYIMPAN PENGATURAN.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-          <Settings className="w-6 h-6 text-blue-600" />
-          Pengaturan Sistem
+        <h1 className="text-2xl font-black text-[#1E3A5F] tracking-tight flex items-center gap-3 uppercase">
+          <div className="bg-[#1E3A5F] p-2 rounded-none"><Settings className="w-6 h-6 text-white" /></div>
+          PENGATURAN SISTEM
         </h1>
-        <p className="text-slate-500 mt-1">Atur parameter dan konfigurasi global sistem bansos.</p>
+        <p className="text-[#64748B] text-[10px] font-bold uppercase tracking-widest mt-2">ATUR PARAMETER DAN KONFIGURASI GLOBAL SISTEM BANSOS.</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-none border-4 border-[#1E3A5F] overflow-hidden shadow-none">
         <div className="p-6">
-          <form onSubmit={handleSave} className="space-y-4 max-w-md">
+          <form onSubmit={handleSave} className="space-y-6 max-w-md">
             <div>
-              <label htmlFor="kuota" className="block text-sm font-medium text-slate-700 mb-1">
-                Kuota Penerima Bansos
+              <label htmlFor="kuota" className="block text-[10px] font-black text-[#1E3A5F] mb-2 uppercase tracking-widest">
+                KUOTA PENERIMA BANSOS
               </label>
               <input
                 id="kuota"
@@ -57,27 +57,27 @@ export function PengaturanSistem({ data, setData }: Props) {
                 min="1"
                 value={kuota}
                 onChange={e => setKuota(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Masukkan kuota (contoh: 8)"
+                className="w-full px-4 py-3 border-2 border-[#1E3A5F] rounded-none text-sm font-bold uppercase focus:outline-none focus:border-[#2563EB] shadow-none transition-colors bg-white"
+                placeholder="MASUKKAN KUOTA (CONTOH: 8)"
                 required
               />
-              <p className="mt-2 text-xs text-slate-500">
-                Tentukan batas jumlah orang yang akan mendapatkan status "Layak" pada hasil akhir perhitungan SAW.
+              <p className="mt-3 text-[10px] font-bold text-[#64748B] uppercase tracking-widest leading-relaxed">
+                TENTUKAN BATAS JUMLAH ORANG YANG AKAN MENDAPATKAN STATUS "LAYAK" PADA HASIL AKHIR PERHITUNGAN SAW.
               </p>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-4 border-t-4 border-[#1E3A5F]">
               <button
                 type="submit"
                 disabled={saving}
-                className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 px-6 py-3 bg-[#1E3A5F] border-2 border-[#1E3A5F] text-white rounded-none text-xs font-black uppercase tracking-widest hover:bg-white hover:text-[#1E3A5F] transition-colors shadow-none disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {saving ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <Save className="w-4 h-4" />
+                  <Save className="w-5 h-5" />
                 )}
-                Simpan Pengaturan
+                SIMPAN PENGATURAN
               </button>
             </div>
           </form>

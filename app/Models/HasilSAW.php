@@ -12,4 +12,14 @@ class HasilSAW extends Model
     {
         return $this->belongsTo(Masyarakat::class);
     }
+
+    public function jenisBantuan()
+    {
+        return $this->belongsTo(JenisBantuan::class, 'jenis_bantuan_id');
+    }
+
+    public function klaimBantuan()
+    {
+        return $this->hasOne(KlaimBantuan::class, 'hasil_saw_id');
+    }
 }

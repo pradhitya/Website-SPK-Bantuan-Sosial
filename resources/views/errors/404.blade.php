@@ -6,39 +6,31 @@
     <title>404 - Halaman Tidak Ditemukan</title>
     @vite(['resources/css/app.css', 'resources/js/app.jsx'])
 </head>
-<body class="antialiased bg-slate-50 text-slate-800 selection:bg-blue-200 selection:text-blue-900">
-    <div class="min-h-screen flex items-center justify-center relative overflow-hidden p-6">
-        <!-- Background Decorations -->
-        <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-100 rounded-full blur-3xl opacity-50 -translate-y-1/2 translate-x-1/3"></div>
-        <div class="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-100 rounded-full blur-3xl opacity-50 translate-y-1/3 -translate-x-1/3"></div>
+<body class="antialiased bg-[#FAFAFA] font-[Inter,sans-serif] text-[#1E3A5F] selection:bg-[#E2E8F0]">
+    <div class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+        <!-- Background Grid -->
+        <div class="absolute inset-0" style="background-image: radial-gradient(#1E3A5F 1px, transparent 1px); background-size: 32px 32px; opacity: 0.1;"></div>
 
-        <div class="relative z-10 max-w-2xl w-full text-center">
-            <div class="mb-8 flex flex-col items-center">
-                <h1 class="text-[150px] sm:text-[200px] font-black leading-none text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-indigo-800 drop-shadow-sm select-none">
+        <div class="relative z-10 w-full max-w-md bg-white border-4 border-[#1E3A5F] p-8 text-center shadow-[8px_8px_0_0_#1E3A5F]">
+            <div class="mb-6">
+                <h1 class="text-7xl sm:text-8xl font-black leading-none text-[#1E3A5F] tracking-tighter drop-shadow-[4px_4px_0_rgba(37,99,235,0.5)]">
                     404
                 </h1>
             </div>
 
-            <h2 class="text-3xl sm:text-4xl font-bold text-slate-800 tracking-tight mb-4">Ups! Kehilangan Arah?</h2>
-            <p class="text-slate-500 text-lg sm:text-xl mb-10 max-w-xl mx-auto leading-relaxed">
-                Halaman yang Anda cari mungkin telah dihapus, diubah namanya, atau tidak pernah ada sejak awal.
+            <h2 class="text-xl sm:text-2xl font-black text-[#1E3A5F] uppercase tracking-widest mb-3">
+                KEHILANGAN ARAH?
+            </h2>
+            <p class="text-[#64748B] text-xs font-bold uppercase tracking-widest mb-8 leading-relaxed">
+                HALAMAN YANG ANDA CARI TIDAK DITEMUKAN ATAU TELAH DIHAPUS.
             </p>
 
-            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <a href="/" class="group flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-600/30 hover:bg-blue-700 hover:shadow-blue-600/40 hover:-translate-y-1 transition-all duration-300">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                    Kembali ke Beranda
-                </a>
-                <button onclick="window.history.back()" class="flex items-center gap-2 px-8 py-4 bg-white text-slate-700 rounded-2xl font-bold border border-slate-200 shadow-sm hover:bg-slate-50 hover:border-slate-300 hover:text-blue-600 hover:-translate-y-1 transition-all duration-300">
-                    Halaman Sebelumnya
-                </button>
-            </div>
-
-            <div class="mt-16 text-slate-400 font-medium text-sm">
-                SPK Bansos - Desa Sukamaju &copy; {{ date('Y') }}
-            </div>
+            <a href="/" class="flex justify-center items-center gap-2 px-6 py-3 mx-auto bg-[#1E3A5F] text-white text-[10px] font-black uppercase tracking-widest border-2 border-[#1E3A5F] hover:bg-white hover:text-[#1E3A5F] transition-colors w-full shadow-[4px_4px_0_0_#2563EB] hover:shadow-[2px_2px_0_0_#2563EB] hover:translate-y-[2px] hover:translate-x-[2px]">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                KEMBALI KE BERANDA
+            </a>
         </div>
     </div>
 </body>

@@ -6,122 +6,163 @@ interface Props { data: AppData; }
 
 export function LaporanKades({ data }: Props) {
   const [periode, setPeriode] = useState(data.activePeriode || '2026-06');
+  const [selectedBantuan, setSelectedBantuan] = useState<string>('all');
   
-  const filteredHasilSAW = data.hasilSAW.filter(h => h.periode === periode);
-  const currentApproved = data.approvedIds[periode] || [];
-  const approved = filteredHasilSAW.filter(r => currentApproved.some(id => String(id) === String(r.masyarakatId)));
+  const filteredHasilSAW = selectedBantuan === 'all'
+    ? data.hasilSAW.filter(h => h.periode === periode)
+    : data.hasilSAW.filter(h => h.periode === periode && String(h.jenis_bantuan_id) === selectedBantuan);
+
+  const approved = filteredHasilSAW.filter(r => {
+    if (r.status_approval === 'disetujui') return true;
+    const k = periode + '_' + r.jenis_bantuan_id;
+    const currentApproved = data.approvedIds[k] || [];
+    return currentApproved.some(id => String(id) === String(r.masyarakatId));
+  });
+
   const sawProcessed = filteredHasilSAW.length > 0;
   const canPrint = approved.length > 0;
 
   const handleExportPDF = () => {
-    window.open(`/api/cetak-sk?periode=${periode}`, '_blank');
+    const jenisParam = selectedBantuan !== 'all' ? `&jenis_bantuan_id=${selectedBantuan}` : '';
+    window.open(`/api/cetak-sk?periode=${periode}${jenisParam}`, '_blank');
   };
 
   const handleExport = () => {
-    window.open(`/api/export-hasil-saw?periode=${periode}`, '_blank');
+    const jenisParam = selectedBantuan !== 'all' ? `&jenis_bantuan_id=${selectedBantuan}` : '';
+    window.open(`/api/export-hasil-saw?periode=${periode}${jenisParam}`, '_blank');
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Cetak Laporan Final</h2>
-          <p className="text-sm text-slate-500 mt-1">Ekspor daftar resmi penerima bansos yang telah Anda sahkan</p>
+    <div className="space-y-6 pb-10">
+      <div className="border-b-4 border-[#1E3A5F] pb-4">
+        <h2 className="text-2xl font-black text-[#1E3A5F] tracking-tight uppercase">CETAK LAPORAN FINAL</h2>
+        <p className="text-[#64748B] text-[10px] font-bold uppercase tracking-widest mt-1">EKSPOR DAFTAR RESMI PENERIMA BANSOS YANG TELAH ANDA SAHKAN</p>
+      </div>
+
+      <div className="bg-white p-5 border-4 border-[#1E3A5F] flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">PERIODE</label>
+            <input 
+              type="month" 
+              value={periode} 
+              onChange={e => setPeriode(e.target.value)}
+              className="px-4 py-3 border-2 border-[#1E3A5F] rounded-none text-xs font-bold uppercase focus:outline-none focus:border-blue-600 transition-colors bg-white w-full sm:w-auto"
+            />
+          </div>
+          
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">PROGRAM</label>
+            <select
+              value={selectedBantuan}
+              onChange={e => setSelectedBantuan(e.target.value)}
+              className="px-4 py-3 border-2 border-[#1E3A5F] rounded-none text-xs font-bold uppercase focus:outline-none focus:border-blue-600 transition-colors bg-white appearance-none pr-10 w-full sm:w-auto"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%231E3A5F' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 7l5 5 5-5'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.75rem center', backgroundSize: '1.5em 1.5em', backgroundRepeat: 'no-repeat' }}
+            >
+              <option value="all">SEMUA BANTUAN SOSIAL</option>
+              {data.jenisBantuan.map(jb => (
+                <option key={jb.id} value={jb.id}>{jb.nama_program.toUpperCase()}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-bold text-slate-600 whitespace-nowrap">Periode:</label>
-          <input 
-            type="month" 
-            value={periode} 
-            onChange={e => setPeriode(e.target.value)}
-            className="px-4 py-2 border border-slate-200 rounded-xl shadow-sm text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all bg-white"
-          />
+
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
           <button
             onClick={handleExport}
             disabled={!canPrint}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 hover:shadow-md hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
+            className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 border-4 border-[#1E3A5F] bg-[#10B981] text-[#1E3A5F] text-[10px] font-black uppercase tracking-widest hover:bg-[#059669] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export CSV</span>
+            <span>EXPORT CSV</span>
           </button>
           <button
             onClick={handleExportPDF}
             disabled={!canPrint}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 hover:shadow-md hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
+            className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 border-4 border-[#1E3A5F] bg-[#3B82F6] text-[#1E3A5F] text-[10px] font-black uppercase tracking-widest hover:bg-[#2563EB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Printer className="w-4 h-4" />
-            <span className="hidden sm:inline">Cetak PDF</span>
+            <span>CETAK PDF</span>
           </button>
         </div>
       </div>
 
       {!canPrint && (
-        <div className="flex items-start gap-3 px-5 py-4 bg-amber-50 border border-amber-200/60 rounded-2xl text-sm text-amber-800 shadow-sm">
-          <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-600" />
-          <span className="leading-relaxed font-medium">
+        <div className="flex items-start gap-4 p-6 bg-amber-300 border-4 border-[#1E3A5F] rounded-none">
+          <AlertCircle className="w-6 h-6 mt-0.5 flex-shrink-0 text-[#1E3A5F]" />
+          <span className="leading-relaxed font-black text-[#1E3A5F] uppercase tracking-widest text-xs">
             {!sawProcessed
-              ? 'Perhitungan SAW belum dilakukan oleh Admin untuk periode ini. Laporan belum tersedia.'
-              : 'Anda belum memberikan persetujuan (ACC) pada halaman Validasi. Silakan setujui data terlebih dahulu sebelum mencetak.'}
+              ? 'DATA TIDAK DITEMUKAN ATAU PERHITUNGAN SAW BELUM DILAKUKAN OLEH ADMIN UNTUK PARAMETER YANG DIPILIH.'
+              : 'ANDA BELUM MEMBERIKAN PERSETUJUAN (ACC) PADA HALAMAN VALIDASI. SILAKAN SETUJUI DATA TERLEBIH DAHULU SEBELUM MENCETAK.'}
           </span>
         </div>
       )}
 
       {canPrint && (
         <>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <Filter className="w-5 h-5 text-blue-600" />
+          <div className="bg-white rounded-none border-4 border-[#1E3A5F] p-6">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 bg-blue-200 border-2 border-[#1E3A5F] rounded-none">
+                <Filter className="w-6 h-6 text-[#1E3A5F]" />
               </div>
-              <h3 className="font-bold text-slate-800 text-lg">Informasi Dokumen</h3>
+              <h3 className="font-black text-[#1E3A5F] text-lg uppercase tracking-widest">INFORMASI DOKUMEN</h3>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-sm">
               {[
-                { label: 'Desa', value: 'Sukamaju' },
-                { label: 'Tahun Anggaran', value: '2025' },
-                { label: 'Jumlah Penerima', value: `${approved.length} Orang` },
-                { label: 'Tanggal Cetak', value: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) },
+                { label: 'DESA', value: 'SUKAMAJU' },
+                { label: 'TAHUN ANGGARAN', value: periode.split('-')[0] || '2026' },
+                { label: 'JUMLAH PENERIMA', value: `${approved.length} ORANG` },
+                { label: 'TANGGAL CETAK', value: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase() },
               ].map((item, i) => (
-                <div key={i} className="bg-slate-50 border border-slate-100 rounded-xl p-4">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">{item.label}</p>
-                  <p className="font-bold text-slate-800">{item.value}</p>
+                <div key={i} className="bg-[#FAFAFA] border-2 border-[#1E3A5F] rounded-none p-5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#64748B] mb-2">{item.label}</p>
+                  <p className="font-black text-[#1E3A5F] text-sm tracking-wider">{item.value}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-            <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30 flex items-center gap-3">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <FileText className="w-5 h-5 text-blue-600" />
+          <div className="bg-white rounded-none border-4 border-[#1E3A5F] overflow-hidden">
+            <div className="px-6 py-6 border-b-4 border-[#1E3A5F] bg-[#FAFAFA] flex items-center gap-4">
+              <div className="p-3 bg-blue-200 border-2 border-[#1E3A5F] rounded-none">
+                <FileText className="w-6 h-6 text-[#1E3A5F]" />
               </div>
-              <h3 className="font-bold text-slate-800 text-lg">Preview Daftar Penerima</h3>
+              <h3 className="font-black text-[#1E3A5F] text-lg uppercase tracking-widest">PREVIEW DAFTAR PENERIMA</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-100">
-                    <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">No</th>
-                    <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nama Kepala Keluarga</th>
-                    <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Alamat</th>
-                    <th className="text-center px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nilai SAW</th>
-                    <th className="text-center px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status Validasi</th>
+                  <tr className="bg-[#1E3A5F] border-b-4 border-[#1E3A5F]">
+                    <th className="text-left px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest border-r-2 border-[#1E3A5F]/20">NO</th>
+                    <th className="text-left px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest border-r-2 border-[#1E3A5F]/20">NAMA KEPALA KELUARGA</th>
+                    <th className="text-left px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest hidden md:table-cell border-r-2 border-[#1E3A5F]/20">ALAMAT</th>
+                    <th className="text-left px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest border-r-2 border-[#1E3A5F]/20">JENIS BANTUAN</th>
+                    <th className="text-center px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest border-r-2 border-[#1E3A5F]/20">NILAI SAW</th>
+                    <th className="text-center px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest">STATUS VALIDASI</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {approved.map((r, i) => (
-                    <tr key={r.masyarakatId} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-slate-400">{i + 1}</td>
-                      <td className="px-6 py-4 font-bold text-slate-800">{r.namaMasyarakat}</td>
-                      <td className="px-6 py-4 text-slate-500 hidden md:table-cell">{r.alamat}</td>
-                      <td className="px-6 py-4 text-center font-mono font-bold text-blue-600">{r.nilaiAkhir.toFixed(4)}</td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                          Disetujui
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y-2 divide-[#1E3A5F]">
+                  {approved.map((r, i) => {
+                    const programName = data.jenisBantuan.find(j => j.id === r.jenis_bantuan_id)?.nama_program || '-';
+                    return (
+                      <tr key={r.masyarakatId + '_' + r.jenis_bantuan_id} className="hover:bg-[#FAFAFA] transition-colors">
+                        <td className="px-6 py-4 font-black text-[#1E3A5F] border-r-2 border-[#1E3A5F]">{i + 1}</td>
+                        <td className="px-6 py-4 font-black text-[#1E3A5F] uppercase tracking-wider border-r-2 border-[#1E3A5F]">{r.namaMasyarakat}</td>
+                        <td className="px-6 py-4 text-[10px] font-bold text-[#64748B] hidden md:table-cell uppercase tracking-widest border-r-2 border-[#1E3A5F]">{r.alamat}</td>
+                        <td className="px-6 py-4 border-r-2 border-[#1E3A5F]">
+                          <span className="inline-flex items-center px-3 py-1 bg-blue-100 text-[#1E3A5F] font-black text-[10px] uppercase tracking-widest border-2 border-[#1E3A5F]">
+                            {programName}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-center font-black text-[#1E3A5F] border-r-2 border-[#1E3A5F]">{r.nilaiAkhir.toFixed(4)}</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="inline-flex items-center px-3 py-1 bg-emerald-300 text-[#1E3A5F] font-black text-[10px] uppercase tracking-widest border-2 border-[#1E3A5F]">
+                            DISETUJUI
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

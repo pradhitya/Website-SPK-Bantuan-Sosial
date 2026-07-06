@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import axios from 'axios';
-import { Calculator, AlertCircle, CheckCircle2, ChevronRight, Download, Printer } from 'lucide-react';
+import { Calculator, AlertCircle, CheckCircle2, ChevronRight, Download, Printer, RotateCcw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { AppData, calculateSAW } from '../../data';
+import { AppData } from '../../data';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 interface Props { data: AppData; setData: (d: AppData) => void; }
 
@@ -11,14 +12,21 @@ type Tab = 'matrix' | 'normalisasi' | 'ranking';
 export function HasilSAW({ data, setData }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('ranking');
   const [processing, setProcessing] = useState(false);
-
-  const allDinilai = data.masyarakat.every(m => data.penilaian.some(p => p.masyarakatId === m.id));
-  const belumDinilai = data.masyarakat.filter(m => !data.penilaian.some(p => p.masyarakatId === m.id));
+  const [resetting, setResetting] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const activePeriode = data.activePeriode || '2026-06';
-  const filteredHasilSAW = data.hasilSAW.filter(h => h.periode === activePeriode);
+  const currentMasyarakat = data.masyarakat.filter(m => (!m.periode || m.periode === activePeriode) && (!data.activeJenisBantuanId || m.jenis_bantuan_id == data.activeJenisBantuanId));
+  const allDinilai = currentMasyarakat.length > 0 && currentMasyarakat.every(m => data.penilaian.some(p => p.masyarakatId === m.id));
+  const belumDinilai = currentMasyarakat.filter(m => !data.penilaian.some(p => p.masyarakatId === m.id));
+
+  const filteredHasilSAW = data.hasilSAW.filter(h => h.periode === activePeriode && (!data.activeJenisBantuanId || h.jenis_bantuan_id == data.activeJenisBantuanId));
   const sawProcessed = filteredHasilSAW.length > 0;
-  const currentApproved = data.approvedIds[activePeriode] || [];
+  const approvalKey = activePeriode + (data.activeJenisBantuanId ? '_' + data.activeJenisBantuanId : '');
+  const currentApproved = data.approvedIds[approvalKey] || [];
+
+  // Detect orphan data (SAW results where masyarakat was deleted)
+  const orphanHasil = filteredHasilSAW.filter(h => !h.namaMasyarakat || h.namaMasyarakat === '');
 
   const handleProcess = async () => {
     if (!allDinilai) {
@@ -27,12 +35,19 @@ export function HasilSAW({ data, setData }: Props) {
     }
     setProcessing(true);
     try {
-      const hasil = calculateSAW(data.masyarakat, data.penilaian, data.kriteria, data.kuotaBansos, activePeriode);
-      await axios.post('/api/penilaian/save-hasil-saw', { hasilSAW: hasil, periode: activePeriode });
+      const response = await axios.post('/api/penilaian/process-saw', { 
+        periode: activePeriode,
+        jenis_bantuan_id: data.activeJenisBantuanId
+      });
+      const hasil = response.data.hasilSAW || [];
       
-      const newHasilSAW = [...data.hasilSAW.filter(h => h.periode !== activePeriode), ...hasil];
-      setData({ ...data, hasilSAW: newHasilSAW, sawProcessed: true, approvedIds: { ...data.approvedIds, [activePeriode]: [] } });
-      toast.success('Perhitungan SAW berhasil diproses!');
+      // Filter out old results for this specific bantuan+periode, keep other programs' results
+      const newHasilSAW = [
+        ...data.hasilSAW.filter(h => !(h.periode === activePeriode && h.jenis_bantuan_id == data.activeJenisBantuanId)),
+        ...hasil
+      ];
+      setData({ ...data, hasilSAW: newHasilSAW, sawProcessed: true, approvedIds: { ...data.approvedIds, [approvalKey]: [] } });
+      toast.success('Perhitungan SAW berhasil diproses oleh sistem!');
     } catch (e) {
       console.error(e);
       toast.error('Gagal memproses perhitungan SAW');
@@ -42,92 +57,142 @@ export function HasilSAW({ data, setData }: Props) {
   };
 
   const handlePrint = () => {
-    window.open(`/api/cetak-sk?periode=${activePeriode}`, '_blank');
+    const jenisParam = data.activeJenisBantuanId ? `&jenis_bantuan_id=${data.activeJenisBantuanId}` : '';
+    window.open(`/api/cetak-sk?periode=${activePeriode}${jenisParam}`, '_blank');
   };
 
   const handleExport = () => {
-    window.open(`/api/export-hasil-saw?periode=${activePeriode}`, '_blank');
+    const jenisParam = data.activeJenisBantuanId ? `&jenis_bantuan_id=${data.activeJenisBantuanId}` : '';
+    window.open(`/api/export-hasil-saw?periode=${activePeriode}${jenisParam}`, '_blank');
+  };
+
+  const handleResetSaw = async () => {
+    setResetting(true);
+    try {
+      await axios.post('/api/penilaian/reset-saw', {
+        periode: activePeriode,
+        jenis_bantuan_id: data.activeJenisBantuanId,
+      });
+      // Remove SAW results for this bantuan+periode from state
+      const newHasilSAW = data.hasilSAW.filter(h => !(h.periode === activePeriode && h.jenis_bantuan_id == data.activeJenisBantuanId));
+      const newApprovedIds = { ...data.approvedIds };
+      delete newApprovedIds[approvalKey];
+      // Also remove related klaim bantuans
+      const removedHasilIds = filteredHasilSAW.map(h => h.id);
+      const newKlaimBantuans = data.klaimBantuans.filter(k => !removedHasilIds.includes(k.hasil_saw_id));
+      setData({ ...data, hasilSAW: newHasilSAW, sawProcessed: false, approvedIds: newApprovedIds, klaimBantuans: newKlaimBantuans });
+      toast.success('Perhitungan SAW berhasil dibatalkan');
+    } catch (e) {
+      console.error(e);
+      toast.error('Gagal membatalkan perhitungan SAW');
+    } finally {
+      setResetting(false);
+      setConfirmReset(false);
+    }
   };
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'matrix', label: 'Matriks Keputusan' },
-    { id: 'normalisasi', label: 'Matriks Normalisasi' },
-    { id: 'ranking', label: 'Hasil Akhir & Ranking' },
+    { id: 'matrix', label: 'MATRIKS KEPUTUSAN' },
+    { id: 'normalisasi', label: 'MATRIKS NORMALISASI' },
+    { id: 'ranking', label: 'HASIL AKHIR & RANKING' },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Hasil Perhitungan SAW</h2>
-          <p className="text-sm text-slate-500 mt-1">Proses perhitungan Simple Additive Weighting untuk menentukan ranking penerima bansos</p>
+          <h2 className="text-2xl font-black text-[#1E3A5F] tracking-tight uppercase">HASIL PERHITUNGAN SAW</h2>
+          <p className="text-[#64748B] text-[10px] font-bold uppercase tracking-widest mt-1">PROSES PERHITUNGAN SIMPLE ADDITIVE WEIGHTING UNTUK MENENTUKAN RANKING PENERIMA BANSOS</p>
         </div>
       </div>
 
       {!allDinilai && (
-        <div className="flex items-start gap-3 px-5 py-4 bg-rose-50/50 border border-rose-200/60 rounded-xl text-sm text-rose-800 shadow-sm">
-          <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-rose-500" />
+        <div className="flex items-start gap-4 px-6 py-5 bg-rose-400 border-4 border-[#1E3A5F] shadow-none text-[#1E3A5F] rounded-none animate-in fade-in slide-in-from-top-2">
+          <AlertCircle className="w-6 h-6 mt-0.5 flex-shrink-0 text-[#1E3A5F]" />
           <div className="leading-relaxed">
-            <span className="font-bold">Penilaian belum lengkap.</span>
-            {' '}Masih ada <span className="font-bold underline decoration-rose-300 underline-offset-2">{belumDinilai.length} warga</span> yang belum dinilai:{' '}
-            <span className="font-medium">{belumDinilai.map(m => m.nama).join(', ')}</span>.
-            <br className="hidden sm:block" /> Silakan lengkapi di halaman Input Penilaian terlebih dahulu.
+            <span className="font-black text-sm uppercase tracking-widest">PENILAIAN BELUM LENGKAP.</span>
+            {' '}MASIH ADA <span className="font-black underline decoration-[#1E3A5F] underline-offset-4">{belumDinilai.length} WARGA</span> YANG BELUM DINILAI:{' '}
+            <span className="font-bold text-xs">{belumDinilai.map(m => m.nama).join(', ')}</span>.
+            <br className="hidden sm:block mt-1" /> SILAKAN LENGKAPI DI HALAMAN INPUT PENILAIAN TERLEBIH DAHULU.
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-        <div className="mb-5 flex flex-col sm:flex-row gap-4 items-end border-b border-slate-100 pb-5">
+      {orphanHasil.length > 0 && (
+        <div className="flex items-start gap-4 px-6 py-5 bg-amber-400 border-4 border-[#1E3A5F] shadow-none text-[#1E3A5F] rounded-none animate-in fade-in slide-in-from-top-2">
+          <AlertCircle className="w-6 h-6 mt-0.5 flex-shrink-0 text-[#1E3A5F]" />
+          <div className="leading-relaxed">
+            <span className="font-black text-sm uppercase tracking-widest">DATA TIDAK VALID.</span>
+            {' '}ADA <span className="font-black underline decoration-[#1E3A5F] underline-offset-4">{orphanHasil.length} HASIL SAW</span> YANG DATANYA SUDAH DIHAPUS.
+            <br className="hidden sm:block mt-1" /> SILAKAN BATALKAN PERHITUNGAN DAN PROSES ULANG DENGAN DATA TERBARU.
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-none border-4 border-[#1E3A5F] p-6 shadow-none">
+        <div className="mb-6 flex flex-col sm:flex-row gap-4 items-end border-b-4 border-[#1E3A5F] pb-6">
           <div className="w-full sm:w-auto">
-            <label className="block text-sm font-bold text-slate-600 mb-2">Periode Bantuan</label>
+            <label className="block text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest mb-2">PERIODE BANTUAN</label>
             <input 
               type="month" 
               value={activePeriode} 
               onChange={e => setData({...data, activePeriode: e.target.value})}
-              className="w-full sm:w-auto px-4 py-2 border border-slate-200 rounded-xl shadow-sm text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all bg-white"
+              className="w-full sm:w-auto px-4 py-3 border-2 border-[#1E3A5F] rounded-none shadow-none text-sm font-bold uppercase focus:outline-none focus:border-[#2563EB] transition-colors bg-white"
             />
           </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-6 justify-between">
           <div className="flex-1">
-            <p className="text-sm font-bold text-slate-800 mb-2.5">Status Perhitungan</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold ${sawProcessed ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                {sawProcessed ? <><CheckCircle2 className="w-4 h-4" /> SAW Sudah Diproses</> : 'Belum Diproses'}
+            <p className="text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest mb-3">STATUS PERHITUNGAN</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-none text-[10px] font-black uppercase tracking-widest border-2 shadow-none ${sawProcessed ? 'bg-emerald-400 text-[#1E3A5F] border-[#1E3A5F]' : 'bg-white text-[#1E3A5F] border-[#1E3A5F]'}`}>
+                {sawProcessed ? <><CheckCircle2 className="w-4 h-4" /> SAW SUDAH DIPROSES</> : 'BELUM DIPROSES'}
               </span>
               {sawProcessed && (
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold ${currentApproved.length > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-amber-50 text-amber-700 border border-amber-200/60'}`}>
-                  {currentApproved.length > 0 ? <><CheckCircle2 className="w-4 h-4" /> Divalidasi Kades</> : 'Menunggu Validasi Kades'}
+                <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-none text-[10px] font-black uppercase tracking-widest border-2 shadow-none ${currentApproved.length > 0 ? 'bg-emerald-400 text-[#1E3A5F] border-[#1E3A5F]' : 'bg-amber-400 text-[#1E3A5F] border-[#1E3A5F]'}`}>
+                  {currentApproved.length > 0 ? <><CheckCircle2 className="w-4 h-4" /> DIVALIDASI KADES</> : 'MENUNGGU VALIDASI KADES'}
                 </span>
               )}
             </div>
             {sawProcessed && (
-              <div className="flex items-center gap-3 text-xs font-medium text-slate-500 mt-3 bg-slate-50 w-fit px-3 py-1.5 rounded-lg border border-slate-100">
-                <span>Kuota Bansos: <strong className="text-slate-700">{data.kuotaBansos} orang</strong></span>
-                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                <span>Total Kandidat: <strong className="text-slate-700">{data.masyarakat.length} orang</strong></span>
+              <div className="flex items-center gap-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest mt-4 bg-[#FAFAFA] w-fit px-4 py-2 rounded-none border-2 border-[#1E3A5F] shadow-none">
+                <span>KUOTA BANSOS: <strong className="text-sm">{data.kuotaBansos} ORANG</strong></span>
+                <span className="w-1.5 h-1.5 bg-[#1E3A5F]"></span>
+                <span>TOTAL KANDIDAT: <strong className="text-sm">{currentMasyarakat.length} ORANG</strong></span>
               </div>
             )}
           </div>
-          <button
-            onClick={handleProcess}
-            disabled={processing || !allDinilai}
-            className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/20 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none transition-all"
-          >
-            <Calculator className="w-4 h-4" />
-            {processing ? 'Memproses...' : 'PROSES HITUNG SAW'}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3">
+            {sawProcessed && (
+              <button
+                onClick={() => setConfirmReset(true)}
+                disabled={resetting}
+                className="flex items-center justify-center gap-2 px-6 py-4 rounded-none bg-white border-2 border-red-600 text-red-600 text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white disabled:opacity-50 transition-colors shadow-none"
+              >
+                {resetting ? <Loader2 className="w-5 h-5 animate-spin" /> : <RotateCcw className="w-5 h-5" />}
+                {resetting ? 'MEMBATALKAN...' : 'BATALKAN PERHITUNGAN'}
+              </button>
+            )}
+            <button
+              onClick={handleProcess}
+              disabled={processing || !allDinilai || currentMasyarakat.length === 0}
+              className="flex items-center justify-center gap-2 px-6 py-4 rounded-none bg-[#1E3A5F] border-2 border-[#1E3A5F] text-white text-xs font-black uppercase tracking-widest hover:bg-white hover:text-[#1E3A5F] disabled:opacity-50 disabled:hover:bg-[#1E3A5F] disabled:hover:text-white transition-colors shadow-none"
+            >
+              <Calculator className="w-5 h-5" />
+              {processing ? 'MEMPROSES...' : sawProcessed ? 'PROSES ULANG SAW' : 'PROSES HITUNG SAW'}
+            </button>
+          </div>
         </div>
       </div>
 
       {sawProcessed && filteredHasilSAW.length > 0 && (
         <>
-          <div className="flex gap-2 bg-slate-100/80 rounded-xl border border-slate-200 p-1.5 shadow-sm">
+          <div className="flex gap-3">
             {tabs.map(t => (
               <button
                 key={t.id}
                 onClick={() => setActiveTab(t.id)}
-                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-bold transition-all ${activeTab === t.id ? 'bg-white text-blue-700 shadow-sm ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                className={`flex-1 py-3 px-4 rounded-none text-[10px] font-black uppercase tracking-widest transition-all border-2 border-[#1E3A5F] ${activeTab === t.id ? 'bg-[#1E3A5F] text-white shadow-none' : 'bg-white text-[#1E3A5F] hover:bg-[#1E3A5F] hover:text-white shadow-none'}`}
               >
                 {t.label}
               </button>
@@ -135,30 +200,30 @@ export function HasilSAW({ data, setData }: Props) {
           </div>
 
           {activeTab === 'matrix' && (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30">
-                <h3 className="font-bold text-slate-800 text-lg">Matriks Keputusan (X)</h3>
-                <p className="text-sm text-slate-500 mt-1">Nilai asli dari setiap alternatif berdasarkan kriteria</p>
+            <div className="bg-white rounded-none border-4 border-[#1E3A5F] overflow-hidden shadow-none">
+              <div className="px-6 py-5 border-b-4 border-[#1E3A5F] bg-[#FAFAFA]">
+                <h3 className="font-black text-lg text-[#1E3A5F] uppercase tracking-widest">MATRIKS KEPUTUSAN (X)</h3>
+                <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest mt-1">NILAI ASLI DARI SETIAP ALTERNATIF BERDASARKAN KRITERIA</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50/50 border-b border-slate-100">
-                      <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50/90 backdrop-blur">Nama</th>
+                    <tr className="bg-white border-b-4 border-[#1E3A5F]">
+                      <th className="text-left px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest sticky left-0 bg-white">NAMA</th>
                       {data.kriteria.map(k => (
-                        <th key={k.id} className="text-center px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                          <div className="font-mono text-slate-700">{k.kode}</div>
-                          <div className={`text-[10px] px-2 py-0.5 rounded-full inline-block mt-1.5 ${k.atribut === 'Benefit' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{k.atribut}</div>
+                        <th key={k.id} className="text-center px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest whitespace-nowrap border-l-2 border-[#E2E8F0]">
+                          <div className="text-sm">{k.kode}</div>
+                          <div className={`text-[9px] px-2 py-0.5 rounded-none inline-block mt-2 border-2 border-[#1E3A5F] shadow-none ${k.atribut === 'Benefit' ? 'bg-emerald-400 text-[#1E3A5F]' : 'bg-rose-400 text-[#1E3A5F]'}`}>{k.atribut}</div>
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y-2 divide-[#E2E8F0]">
                     {filteredHasilSAW.map(r => (
-                      <tr key={r.masyarakatId} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 font-bold text-slate-700 sticky left-0 bg-white/90 backdrop-blur">{r.namaMasyarakat}</td>
+                      <tr key={r.masyarakatId} className="hover:bg-[#FAFAFA] transition-colors">
+                        <td className="px-3 py-3 font-black text-sm text-[#1E3A5F] sticky left-0 bg-white uppercase tracking-widest">{r.namaMasyarakat}</td>
                         {data.kriteria.map(k => (
-                          <td key={k.id} className="px-4 py-4 text-center font-mono font-medium text-slate-600">
+                          <td key={k.id} className="px-3 py-3 text-center font-black text-sm text-[#1E3A5F] border-l-2 border-[#E2E8F0]">
                             {r.nilaiPerKriteria[k.id] ?? '-'}
                           </td>
                         ))}
@@ -171,33 +236,33 @@ export function HasilSAW({ data, setData }: Props) {
           )}
 
           {activeTab === 'normalisasi' && (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30">
-                <h3 className="font-bold text-slate-800 text-lg">Matriks Normalisasi (R)</h3>
-                <p className="text-sm text-slate-500 mt-1">
-                  <span className="font-mono bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-xs mr-2 border border-emerald-100">Benefit: r<sub>ij</sub> = x<sub>ij</sub> / max(x<sub>j</sub>)</span>
-                  <span className="font-mono bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded text-xs border border-rose-100">Cost: r<sub>ij</sub> = min(x<sub>j</sub>) / x<sub>ij</sub></span>
+            <div className="bg-white rounded-none border-4 border-[#1E3A5F] overflow-hidden shadow-none">
+              <div className="px-6 py-5 border-b-4 border-[#1E3A5F] bg-[#FAFAFA]">
+                <h3 className="font-black text-lg text-[#1E3A5F] uppercase tracking-widest">MATRIKS NORMALISASI (R)</h3>
+                <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest mt-2 flex flex-wrap gap-2">
+                  <span className="bg-emerald-400 text-[#1E3A5F] font-black px-2 py-1 border-2 border-[#1E3A5F] shadow-none">BENEFIT: R<sub>IJ</sub> = X<sub>IJ</sub> / MAX(X<sub>J</sub>)</span>
+                  <span className="bg-rose-400 text-[#1E3A5F] font-black px-2 py-1 border-2 border-[#1E3A5F] shadow-none">COST: R<sub>IJ</sub> = MIN(X<sub>J</sub>) / X<sub>IJ</sub></span>
                 </p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50/50 border-b border-slate-100">
-                      <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50/90 backdrop-blur">Nama</th>
+                    <tr className="bg-white border-b-4 border-[#1E3A5F]">
+                      <th className="text-left px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest sticky left-0 bg-white">NAMA</th>
                       {data.kriteria.map(k => (
-                        <th key={k.id} className="text-center px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                          <div className="font-mono text-slate-700">{k.kode}</div>
-                          <div className="text-[10px] px-2 py-0.5 rounded-full inline-block bg-slate-100 text-slate-600 mt-1.5">W={k.bobot}%</div>
+                        <th key={k.id} className="text-center px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest border-l-2 border-[#E2E8F0]">
+                          <div className="text-sm">{k.kode}</div>
+                          <div className="text-[9px] px-2 py-0.5 rounded-none inline-block bg-[#1E3A5F] text-white mt-2 font-black border-2 border-[#1E3A5F] shadow-none">W={k.bobot}%</div>
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y-2 divide-[#E2E8F0]">
                     {filteredHasilSAW.map(r => (
-                      <tr key={r.masyarakatId} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 font-bold text-slate-700 sticky left-0 bg-white/90 backdrop-blur">{r.namaMasyarakat}</td>
+                      <tr key={r.masyarakatId} className="hover:bg-[#FAFAFA] transition-colors">
+                        <td className="px-3 py-3 font-black text-sm text-[#1E3A5F] sticky left-0 bg-white uppercase tracking-widest">{r.namaMasyarakat}</td>
                         {data.kriteria.map(k => (
-                          <td key={k.id} className="px-4 py-4 text-center font-mono font-medium text-slate-600">
+                          <td key={k.id} className="px-3 py-3 text-center font-bold text-sm text-[#1E3A5F] border-l-2 border-[#E2E8F0]">
                             {r.normalisasi[k.id]?.toFixed(4) ?? '-'}
                           </td>
                         ))}
@@ -210,34 +275,34 @@ export function HasilSAW({ data, setData }: Props) {
           )}
 
           {activeTab === 'ranking' && (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="bg-white rounded-none border-4 border-[#1E3A5F] overflow-hidden shadow-none">
+              <div className="px-6 py-5 border-b-4 border-[#1E3A5F] bg-[#FAFAFA] flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
-                  <h3 className="font-bold text-slate-800 text-lg">Hasil Akhir & Ranking</h3>
-                  <p className="text-sm text-slate-500 mt-1 flex items-center gap-3">
-                    <span className="font-mono bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-xs border border-blue-100">V<sub>i</sub> = Σ(w<sub>j</sub> × r<sub>ij</sub>)</span>
-                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-medium">Kuota: {data.kuotaBansos} orang</span>
-                  </p>
+                  <h3 className="font-black text-lg text-[#1E3A5F] uppercase tracking-widest">HASIL AKHIR & RANKING</h3>
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px]">
+                    <span className="font-black bg-white text-[#1E3A5F] px-2 py-1 rounded-none border-2 border-[#1E3A5F] shadow-none uppercase">V<sub>I</sub> = Î£(W<sub>J</sub> Ã— R<sub>IJ</sub>)</span>
+                    <span className="bg-[#1E3A5F] text-white px-2 py-1 rounded-none border-2 border-[#1E3A5F] shadow-none font-black uppercase tracking-widest">KUOTA: {data.kuotaBansos} ORANG</span>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className={`text-xs font-bold px-4 py-2 rounded-xl border ${currentApproved.length > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60' : 'bg-amber-50 text-amber-700 border-amber-200/60'}`}>
-                    {currentApproved.length > 0 ? 'Telah Divalidasi Kades' : 'Menunggu Validasi Kepala Desa'}
+                <div className="flex flex-wrap items-center gap-4">
+                  <span className={`text-[10px] font-black px-4 py-2.5 rounded-none border-2 shadow-none uppercase tracking-widest ${currentApproved.length > 0 ? 'bg-emerald-400 text-[#1E3A5F] border-[#1E3A5F]' : 'bg-amber-400 text-[#1E3A5F] border-[#1E3A5F]'}`}>
+                    {currentApproved.length > 0 ? 'TELAH DIVALIDASI KADES' : 'MENUNGGU VALIDASI KEPALA DESA'}
                   </span>
                   {currentApproved.length > 0 && (
                     <>
                       <button
                         onClick={handleExport}
-                        className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 hover:shadow-md hover:-translate-y-0.5 transition-all"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-none border-2 border-[#1E3A5F] bg-white text-[#1E3A5F] text-[10px] font-black hover:bg-[#1E3A5F] hover:text-white uppercase tracking-widest transition-colors shadow-none"
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Export CSV</span>
+                        <Download className="w-4 h-4" />
+                        <span className="hidden sm:inline">EXPORT CSV</span>
                       </button>
                       <button
                         onClick={handlePrint}
-                        className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 hover:shadow-md hover:-translate-y-0.5 transition-all"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-none border-2 border-[#1E3A5F] bg-[#1E3A5F] text-white text-[10px] font-black hover:bg-white hover:text-[#1E3A5F] uppercase tracking-widest transition-colors shadow-none"
                       >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Cetak PDF</span>
+                        <Printer className="w-4 h-4" />
+                        <span className="hidden sm:inline">CETAK PDF</span>
                       </button>
                     </>
                   )}
@@ -246,56 +311,65 @@ export function HasilSAW({ data, setData }: Props) {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50/50 border-b border-slate-100">
-                      <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Ranking</th>
-                      <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nama</th>
-                      <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Alamat</th>
-                      <th className="text-center px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nilai SAW (V)</th>
-                      <th className="text-center px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                      <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Catatan Kades</th>
+                    <tr className="bg-white border-b-4 border-[#1E3A5F]">
+                      <th className="text-left px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">RANKING</th>
+                      <th className="text-left px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">NAMA</th>
+                      <th className="text-left px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest hidden md:table-cell">ALAMAT</th>
+                      <th className="text-center px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">NILAI SAW (V)</th>
+                      <th className="text-center px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">STATUS</th>
+                      <th className="text-left px-3 py-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">CATATAN KADES</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y-2 divide-[#E2E8F0]">
                     {filteredHasilSAW.map(r => (
-                      <tr key={r.masyarakatId} className={`transition-colors ${r.ranking <= data.kuotaBansos ? 'bg-emerald-50/30 hover:bg-emerald-50/60' : 'hover:bg-slate-50/50'}`}>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-black shadow-sm ${
-                            r.ranking === 1 ? 'bg-gradient-to-br from-yellow-300 to-yellow-500 text-yellow-900 border border-yellow-400' :
-                            r.ranking === 2 ? 'bg-gradient-to-br from-slate-200 to-slate-300 text-slate-700 border border-slate-300' :
-                            r.ranking === 3 ? 'bg-gradient-to-br from-orange-200 to-orange-400 text-orange-900 border border-orange-300' :
-                            r.ranking <= data.kuotaBansos ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-500 border border-slate-200'
+                      <tr key={r.masyarakatId} className={`transition-colors ${r.ranking <= data.kuotaBansos ? 'bg-emerald-50 hover:bg-emerald-100' : 'hover:bg-[#FAFAFA]'}`}>
+                        <td className="px-3 py-3">
+                          <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1.5 rounded-none text-sm font-black border-2 border-[#1E3A5F] shadow-none ${
+                            r.ranking === 1 ? 'bg-amber-300 text-[#1E3A5F]' :
+                            r.ranking === 2 ? 'bg-slate-300 text-[#1E3A5F]' :
+                            r.ranking === 3 ? 'bg-orange-400 text-[#1E3A5F]' :
+                            r.ranking <= data.kuotaBansos ? 'bg-white text-[#1E3A5F]' : 'bg-[#FAFAFA] text-[#64748B]'
                           }`}>
                             {r.ranking}
                           </span>
                         </td>
-                        <td className="px-6 py-4 font-bold text-slate-800">{r.namaMasyarakat}</td>
-                        <td className="px-6 py-4 text-slate-500 hidden md:table-cell truncate max-w-[200px]" title={r.alamat}>{r.alamat}</td>
-                        <td className="px-6 py-4 text-center">
-                          <span className="font-mono font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{r.nilaiAkhir.toFixed(4)}</span>
+                        <td className="px-3 py-3 font-black text-[#1E3A5F] uppercase tracking-widest">{r.namaMasyarakat}</td>
+                        <td className="px-3 py-3 text-[10px] font-bold text-[#64748B] hidden md:table-cell truncate max-w-[200px] uppercase tracking-widest" title={r.alamat}>{r.alamat}</td>
+                        <td className="px-3 py-3 text-center">
+                          <span className="font-black text-[#1E3A5F] bg-white px-3 py-1.5 rounded-none border-2 border-[#1E3A5F] shadow-none">{r.nilaiAkhir.toFixed(4)}</span>
                         </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${r.status === 'Layak' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`inline-flex items-center px-3 py-1.5 rounded-none text-[10px] font-black uppercase tracking-widest border-2 shadow-none ${r.status === 'Layak' ? 'bg-emerald-400 text-[#1E3A5F] border-[#1E3A5F]' : 'bg-rose-400 text-[#1E3A5F] border-[#1E3A5F]'}`}>
                             {r.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">
+                        <td className="px-3 py-3 text-xs text-[#1E3A5F]">
                           {r.catatan ? (
-                            <span className="italic font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-md border border-rose-100">"{r.catatan}"</span>
-                          ) : <span className="text-slate-300">-</span>}
+                            <span className="font-black bg-rose-200 px-3 py-1.5 rounded-none border-2 border-[#1E3A5F] uppercase tracking-widest inline-block shadow-none">"{r.catatan}"</span>
+                          ) : <span className="text-[#64748B] font-bold">-</span>}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 bg-gray-50 border-t border-border flex items-center gap-2 text-xs text-muted-foreground">
-                <ChevronRight className="w-3 h-3" />
-                Baris berwarna hijau menunjukkan warga yang masuk dalam kuota penerima bansos ({data.kuotaBansos} orang teratas)
+              <div className="px-6 py-4 bg-[#FAFAFA] border-t-4 border-[#1E3A5F] flex items-center gap-3 text-[10px] font-black text-[#1E3A5F] uppercase tracking-widest">
+                <ChevronRight className="w-4 h-4" />
+                BARIS BERWARNA HIJAU MENUNJUKKAN WARGA YANG MASUK DALAM KUOTA PENERIMA BANSOS ({data.kuotaBansos} ORANG TERATAS)
               </div>
             </div>
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={confirmReset}
+        title="BATALKAN PERHITUNGAN SAW"
+        message={`Yakin ingin membatalkan seluruh hasil perhitungan SAW untuk periode ${activePeriode}? Semua data ranking, approval kades, dan klaim bantuan terkait akan dihapus. Data calon penerima dan penilaian tetap tersimpan.`}
+        confirmLabel="YA, BATALKAN"
+        onConfirm={handleResetSaw}
+        onCancel={() => setConfirmReset(false)}
+      />
     </div>
   );
 }
